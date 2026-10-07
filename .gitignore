@@ -1,0 +1,26 @@
+# ---- 构建产物（可由 make 重新生成，不提交）----
+obj/
+bin/
+*.o
+*.d
+
+# ---- 密钥与 AI 工具配置（仓库为 public，绝不能提交）----
+.env
+.env.*
+*.key
+*.pem
+credentials.json
+.ccswitch/
+.cc-switch/
+.claude/
+.cline/
+.continue/
+.cursor/
+.agents/
+.vscode/
+.idea/
+
+# ---- 系统垃圾文件 ----
+.DS_Store
+Thumbs.db
+desktop.ini
