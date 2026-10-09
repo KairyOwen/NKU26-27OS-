@@ -1,4 +1,4 @@
-PROJ	:= lab1
+﻿PROJ	:= lab1
 EMPTY	:=
 SPACE	:= $(EMPTY) $(EMPTY)
 SLASH	:= /
@@ -158,19 +158,19 @@ TARGETS: $(TARGETS)
 
 .PHONY: qemu 
 qemu: $(UCOREIMG) $(SWAPIMG) $(SFSIMG)
-#	$(V)$(QEMU) -kernel $(UCOREIMG) -nographic
+#	$(V)$(QEMU) -device loader,file=$(UCOREIMG),addr=0x80200000 -nographic
 	$(V)$(QEMU) \
 		-machine virt \
 		-nographic \
 		-bios default \
-		-kernel $(UCOREIMG)
+		-device loader,file=$(UCOREIMG),addr=0x80200000
 
 debug: $(UCOREIMG) $(SWAPIMG) $(SFSIMG)
 	$(V)$(QEMU) \
 		-machine virt \
 		-nographic \
 		-bios default \
-		-kernel $(UCOREIMG) \
+		-device loader,file=$(UCOREIMG),addr=0x80200000 \
 		-s -S
 
 gdb:
