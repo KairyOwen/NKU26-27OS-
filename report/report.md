@@ -5,7 +5,7 @@
 | 项目 | 内容 |
 |------|------|
 | **实验名称** | Lab 1：比麻雀更小的麻雀（最小可执行内核） |
-| **小组成员** | 【2412101-张哲宇】、【2410683-刘梓涵】、【请填写：学号-姓名】 |
+| **小组成员** | 【2412101-张哲宇】、【2410683-刘梓涵】、【2411310-李镕吉】 |
 | **完成日期** | 2026-10-8 |
 
 ### 小组分工
@@ -16,7 +16,7 @@
 |------|----------------|
 | A：【2412101-张哲宇】 | 环境搭建与验证、练习 1-1（Makefile 构建过程）、测试与验证、仓库与提交管理 |
 | B：【2410683-刘梓涵】 | 练习 1-3、练习 2、GDB 调试体验、实验整体逻辑分析 |
-| C：【学号-姓名】 | 练习 1-2（链接脚本）、SBI 到 stdio 调用链、实验目的与总结、全文格式终检 |
+| C：【2411310-李镕吉】 | 练习 1-2（链接脚本）、SBI 到 stdio 调用链、实验目的与总结、全文格式终检 |
 
 实验报告如何分工？
 
@@ -24,7 +24,7 @@
 |------|---------------|
 | A：【2412101-张哲宇】 | 二、实验环境；四（练习 1-1）；五、测试与验证 |
 | B：【2410683-刘梓涵】 | 三、实验整体逻辑分析；四（练习 1-3、练习 2、GDB 调试体验） |
-| C：【学号-姓名】 | 一、实验目的；四（练习 1-2、SBI 到 stdio）；六、实验总结与收获；全文组装与格式终检 |
+| C：【2411310-李镕吉】 | 一、实验目的；四（练习 1-2、SBI 到 stdio）；六、实验总结与收获；全文组装与格式终检 |
 
 实验报告由三位成员分别完成负责章节，最后统一合并到 `report.md`。A 负责检查分支、目录和提交规范；C 负责全文格式终检及提示词、截图归档。
 
@@ -71,9 +71,9 @@
 
 | 成员 | AI 编程工具 | 底层模型 | 备注 |
 |------|------------|----------|------|
-| A：【2412101-张哲宇】 | Codex 桌面应用 | 【codex 5.5】 | 用于环境排错、Makefile 分析、GDB 步骤设计和报告整理；所有命令均由成员在本地复核 |
+| A：【2412101-张哲宇】 | Codex 桌面应用 | codex 5.5 | 用于环境排错、Makefile 分析、GDB 步骤设计和报告整理；所有命令均由成员在本地复核 |
 | B：【2410683-刘梓涵】 | zcode | glm5.3 | 用于镜像/引导特征分析、OpenSBI 加载过程分析、GDB 调试步骤设计与报错排查 |
-| C：【学号-姓名】 | 【请填写】 | 【请填写】 | |
+| C：【2411310-李镕吉】 | ClaudeCode | kimi-k2.6 | 用于学习kernel.ld、SBI 到 stdio 调用链、report内容大致摘要、|
 
 ### 2.4 环境配置与验证过程
 
@@ -392,9 +392,146 @@ bin/ucore.img   约 16 KiB
 
 ### 练习 1-2：逐行分析 `tools/kernel.ld`
 
-**负责人：** C【学号-姓名】
+**负责人：** C【2411310-李镕吉】
 
-> 待 C 合并正式答案。至少应逐行说明 `OUTPUT_ARCH`、`ENTRY`、`BASE_ADDRESS`、各 section、`ALIGN(0x1000)`、`etext`、`edata`、`end` 和 `/DISCARD/`。
+链接脚本 `tools/kernel.ld` 决定了内核在内存中的排布方式。下面逐行说明其含义，并结合 `kern/init/init.c` 中 `memset(edata, 0, end - edata)` 解释 `etext`、`edata`、`end` 三个符号的实际用途。
+
+#### 4.2.1 链接脚本全文与逐行解释
+
+```ld
+/* Simple linker script for the ucore kernel.
+   See the GNU ld 'info' manual ("info ld") to learn the syntax. */
+```
+注释，说明这是 ucore 内核的链接脚本，语法参考 GNU ld 手册。
+
+```ld
+OUTPUT_ARCH(riscv)
+```
+指定输出文件的目标架构为 RISC-V。告诉链接器生成适用于 RISC-V 处理器的 ELF 文件头属性。
+
+```ld
+ENTRY(kern_entry)
+```
+指定 ELF 的入口点符号为 `kern_entry`。该符号由 `kern/init/entry.S` 通过 `.globl kern_entry` 导出，是内核执行的第一条指令的地址。链接器会在 ELF 头中记录该符号的地址，供引导方和调试器识别。
+
+```ld
+BASE_ADDRESS = 0x80200000;
+```
+定义常量 `BASE_ADDRESS` 为 `0x80200000`。这是 OpenSBI 与 QEMU 约定的内核装载基址，后续 `. = BASE_ADDRESS` 将定位计数器置于此地址，确保 `.text` 段从这里开始排布。
+
+```ld
+SECTIONS
+{
+```
+`SECTIONS` 是链接脚本的核心块，描述如何把输入文件中的各个 section 映射到输出文件的 section，并控制它们在内存中的排布顺序与地址。
+
+```ld
+    /* Load the kernel at this address: "." means the current address */
+    . = BASE_ADDRESS;
+```
+将定位计数器 `.` 设为 `0x80200000`。此后所有 section 的装载地址都从这个基址开始累加。
+
+```ld
+    .text : {
+        *(.text.kern_entry .text .stub .text.* .gnu.linkonce.t.*)
+    }
+```
+定义输出 section `.text`。花括号内列出输入 section 的匹配模式：
+- `*(.text.kern_entry)`：把名为 `.text.kern_entry` 的 section 放在最前面，确保 `kern_entry` 位于镜像起始处；
+- `*(.text)`、`*(.text.*)`：收集所有代码 section；
+- `*(.stub)`、`*(.gnu.linkonce.t.*)`：收集编译器生成的桩代码和 linkonce 代码。
+
+```ld
+    PROVIDE(etext = .); /* Define the 'etext' symbol to this value */
+```
+定义符号 `etext`，其值为当前定位计数器，即 `.text` 段结束后的地址。它标记了代码段的末尾，可用于运行时确定代码区域范围。
+
+```ld
+    .rodata : {
+        *(.rodata .rodata.* .gnu.linkonce.r.*)
+    }
+```
+定义只读数据段 `.rodata`，存放字符串常量、只读全局变量等。这些数据和代码一样，在运行期间不应被修改。
+
+```ld
+    /* Adjust the address for the data segment to the next page */
+    . = ALIGN(0x1000);
+```
+将定位计数器向上对齐到下一个 4 KiB（`0x1000`）边界。`PGSIZE = 4096`（定义于 `kern/mm/mmu.h`），因此这里实现了页对齐。数据段从页边界开始，是为了后续启用分页机制时，能够以页为单位对数据区域进行映射和保护。
+
+```ld
+    /* The data segment */
+    .data : {
+        *(.data)
+        *(.data.*)
+    }
+```
+定义已初始化数据段 `.data`，存放带有非零初值的全局变量和静态变量。
+
+```ld
+    .sdata : {
+        *(.sdata)
+        *(.sdata.*)
+    }
+```
+定义小数据段 `.sdata`，RISC-V 中用于存放可被 gp 寄存器相对寻址的小体积全局数据，提高访问效率。
+
+```ld
+    PROVIDE(edata = .);
+```
+定义符号 `edata`，其值为 `.data` 和 `.sdata` 结束后的地址。它标记**已初始化数据区域的结束**。
+
+```ld
+    .bss : {
+        *(.bss)
+        *(.bss.*)
+        *(.sbss*)
+    }
+```
+定义 BSS 段，存放未初始化或初值为 0 的全局/静态变量。BSS 段在 ELF 中只记录大小，不占用文件空间；镜像被加载到内存后，需要由启动代码清零。
+
+```ld
+    PROVIDE(end = .);
+```
+定义符号 `end`，其值为 `.bss` 段结束后的地址。它标记**整个内核镜像在内存中的结束位置**，也是内核可安全使用的内存起始边界。
+
+```ld
+    /DISCARD/ : {
+        *(.eh_frame .note.GNU-stack)
+    }
+```
+显式丢弃 `.eh_frame`（异常处理帧信息，C++ 异常或栈回溯用）和 `.note.GNU-stack`（栈可执行性标记）。内核不使用标准异常处理机制，丢弃这些 section 可减小镜像体积。
+
+```ld
+}
+```
+结束 `SECTIONS` 块。
+
+#### 4.2.2 `etext` / `edata` / `end` 的实际用途
+
+这三个符号在 `kern/init/init.c` 中被直接引用：
+
+```c
+extern char edata[], end[];
+memset(edata, 0, end - edata);
+```
+
+| 符号 | 含义 | 地址示意 |
+|------|------|---------|
+| `etext` | 代码段 `.text` 结束地址 | `0x80200000 + text_size` |
+| `edata` | 已初始化数据段结束地址 | `etext + rodata_size + data_size`（已页对齐） |
+| `end` | BSS 段结束地址，即内核镜像结束地址 | `edata + bss_size` |
+
+`memset(edata, 0, end - edata)` 将 `edata` 到 `end` 之间的内存清零，这正是 BSS 段的范围。虽然 `.bss` 在 ELF 中不占用文件字节，但加载到内存后必须保证内容为 0，否则未初始化全局变量的值将不可预期。因此 `edata` 和 `end` 的符号定义与启动代码的清零操作环环相扣：链接脚本划定边界，C 代码根据边界执行初始化。
+
+#### 4.2.3 链接脚本与镜像特征的对应关系
+
+链接脚本的设置直接对应了练习 1-3 中提到的“符合规范的镜像”特征：
+
+1. **入口符号明确**：`ENTRY(kern_entry)` 配合 `.text.kern_entry` 排在首位；
+2. **装载基址一致**：`BASE_ADDRESS = 0x80200000` 与 OpenSBI 的跳转目标相同；
+3. **页对齐**：`ALIGN(0x1000)` 保证数据段按 4 KiB 对齐，与后续分页兼容；
+4. **边界符号可用**：`etext`、`edata`、`end` 为启动代码和内存管理提供精确的地址边界。
 
 ### 练习 1-3：符合规范的镜像/引导特征
 
@@ -521,13 +658,138 @@ bin 的代价是体积：`.bss` 段在 ELF 中只记录起止地址（不占文�
 
 原因：新版 OpenSBI 的跳转地址不再由固件写死，而是由 QEMU 通过启动参数传入；`-device loader` 不会设置该字段，`-kernel` 会把它设为 virt 机器的默认内核装载地址 `0x80200000`。据此本组把 Makefile 的 `qemu` / `debug` 目标调整为 `-kernel $(UCOREIMG)`。
 
-> ⚠️ **该版本偏差与 Makefile 修改需向助教确认。** 课程明确指定 QEMU 4.1.1；若要求严格一致，应改用 4.1.1 并还原 Makefile 的原始写法（`-device loader,file=...,addr=0x80200000`）。
 
 ### SBI 到 stdio 的输出调用链
 
-**负责人：** C【学号-姓名】
+**负责人：** C【2411310-李镕吉】
 
-> 待 C 合并正式答案。建议按照 `cprintf -> vcprintf -> vprintfmt -> cputch -> cons_putc -> sbi_console_putchar -> sbi_call -> ecall -> OpenSBI -> UART` 组织。
+本实验的裸机内核没有宿主 libc，也没有直接操作串口硬件的驱动。内核中的 `cprintf` 要能把字符显示到终端，必须借助运行在 M 态的 OpenSBI 固件。完整调用链如下：
+
+```text
+cprintf(fmt, ...)              (kern/libs/stdio.c)
+  → vcprintf(fmt, ap)
+      → vprintfmt((void *)cputch, &cnt, fmt, ap)   (libs/printfmt.c)
+          → cputch(c, &cnt)                        (kern/libs/stdio.c)
+              → cons_putc(c)                       (kern/driver/console.c)
+                  → sbi_console_putchar(ch)        (libs/sbi.c)
+                      → sbi_call(SBI_CONSOLE_PUTCHAR, ch, 0, 0)
+                          → ecall                  (libs/sbi.c，内联汇编)
+                              → OpenSBI 陷入处理
+                                  → 写入 UART 寄存器
+                                      → 终端显示字符
+```
+
+#### 4.5.1 用户层接口：`cprintf` 与 `vcprintf`
+
+```c
+int cprintf(const char *fmt, ...) {
+    va_list ap;
+    int cnt;
+    va_start(ap, fmt);
+    cnt = vcprintf(fmt, ap);
+    va_end(ap);
+    return cnt;
+}
+```
+
+`cprintf` 是内核的格式化输出入口，接口与标准 `printf` 类似。它通过可变参数宏 `va_start`/`va_end` 收集参数，交给 `vcprintf` 处理。
+
+```c
+int vcprintf(const char *fmt, va_list ap) {
+    int cnt = 0;
+    vprintfmt((void *)cputch, &cnt, fmt, ap);
+    return cnt;
+}
+```
+
+`vcprintf` 的核心是调用 `vprintfmt`，并传入一个**字符输出回调函数** `cputch` 和一个计数器 `cnt`。`vprintfmt` 在解析格式字符串的过程中，每产生一个字符就回调 `cputch`。
+
+#### 4.5.2 格式化引擎：`vprintfmt`
+
+`vprintfmt` 定义于 `libs/printfmt.c`，负责解析 `%d`、`%s`、`%x` 等格式说明符，并将结果字符逐个写出。它本身不依赖任何 I/O 设备，只通过函数指针 `putch` 与下层通信：
+
+```c
+void vprintfmt(void (*putch)(int, void*), void *putdat,
+               const char *fmt, va_list ap);
+```
+
+这种设计使 `vprintfmt` 既可以向屏幕输出（传入 `cputch`），也可以向内存缓冲区输出（`snprintf` 传入 `sprintputch`）。
+
+#### 4.5.3 字符下沉：`cputch` → `cons_putc`
+
+```c
+static void cputch(int c, int *cnt) {
+    cons_putc(c);
+    (*cnt)++;
+}
+```
+
+`cputch` 每被回调一次，就把一个字符交给 `cons_putc`，同时递增字符计数。
+
+```c
+void cons_putc(int c) { sbi_console_putchar((unsigned char)c); }
+```
+
+`cons_putc` 是“控制台字符输出”的抽象。当前实现直接透传给 SBI 接口；若未来内核需要支持多种输出设备（如 VGA、串口、文件重定向），可在此增加分发逻辑，而无需改动上层的 `cprintf` 和 `vprintfmt`。
+
+#### 4.5.4 SBI 调用封装：`sbi_console_putchar` → `sbi_call`
+
+```c
+void sbi_console_putchar(unsigned char ch) {
+    sbi_call(SBI_CONSOLE_PUTCHAR, ch, 0, 0);
+}
+```
+
+`SBI_CONSOLE_PUTCHAR` 的值为 1，对应 OpenSBI 规范中的“控制台输出字符”调用号。
+
+```c
+uint64_t sbi_call(uint64_t sbi_type, uint64_t arg0,
+                  uint64_t arg1, uint64_t arg2) {
+    uint64_t ret_val;
+    __asm__ volatile (
+        "mv x17, %[sbi_type]\n"
+        "mv x10, %[arg0]\n"
+        "mv x11, %[arg1]\n"
+        "mv x12, %[arg2]\n"
+        "ecall\n"
+        "mv %[ret_val], x10"
+        : [ret_val] "=r" (ret_val)
+        : [sbi_type] "r" (sbi_type), [arg0] "r" (arg0),
+          [arg1] "r" (arg1), [arg2] "r" (arg2)
+        : "memory"
+    );
+    return ret_val;
+}
+```
+
+`sbi_call` 是内核与 OpenSBI 之间的桥梁。它使用 RISC-V 的 `ecall` 指令触发**环境调用异常**，并遵循 OpenSBI 的调用约定：
+
+| 寄存器 | 用途 |
+|--------|------|
+| `x17` (a7) | SBI 扩展/调用号（此处为 `SBI_CONSOLE_PUTCHAR = 1`） |
+| `x10` (a0) | 第 1 个参数（要输出的字符） |
+| `x11` (a1) | 第 2 个参数 |
+| `x12` (a2) | 第 3 个参数 |
+| `x10` (a0) | 返回值（`ecall` 返回后通过 `mv` 读回） |
+
+`ecall` 会从 S 态（内核运行态）陷入 M 态（机器态），控制权交给 OpenSBI。OpenSBI 解析调用号和参数，执行实际的硬件操作，然后把结果写回寄存器并返回。
+
+#### 4.5.5 为什么内核不能直接操作串口？
+
+RISC-V 架构定义了三个特权级：U 态（用户）、S 态（监管者/内核）、M 态（机器）。本实验的内核运行在 S 态，而串口等物理设备的寄存器访问通常需要 M 态权限，或至少由 M 态固件统一管理。S 态代码如果试图直接读写设备物理地址，可能因权限不足而触发异常，或因不同板卡的地址映射差异导致不可移植。
+
+OpenSBI 作为 M 态固件，屏蔽了底层硬件差异，向 S 态提供统一的 SBI 接口。内核只需发出 `ecall`，无需关心具体板卡的 UART 基地址、波特率设置或 FIFO 状态位。这使得同一份内核代码可以在 QEMU `virt`、HiFive Unleashed 等不同 RISC-V 平台上运行，只要这些平台提供兼容的 OpenSBI 实现。
+
+#### 4.5.6 小结
+
+`cprintf` 的字符之所以最终出现在终端，是因为调用链把“格式化”与“设备输出”解耦：
+
+- **上层**（`cprintf`/`vprintfmt`）只做格式化，不碰硬件；
+- **中层**（`cons_putc`）做设备抽象，预留扩展点；
+- **下层**（`sbi_call`/`ecall`）完成特权级提升，把请求交给 M 态固件；
+- **底层**（OpenSBI/UART）真正驱动硬件。
+
+这条链体现了操作系统设计的核心原则之一：**分层与抽象**。内核本身不直接操控所有硬件，而是通过固件提供的标准接口完成裸机 I/O，同时保持自身的可移植性和架构无关性。
 
 ### GDB 调试体验
 
@@ -663,7 +925,7 @@ Domain0 Next Address      : 0x0000000080200000
 (THU.CST) os is loading ...
 ```
 
-这证明内核镜像能够在 `0x80200000` 开始执行。报告与代码均如实保留该兼容性修改，不将实际环境误写为 QEMU 4.1.1。提交前仍建议取得助教对 QEMU 8.2.2 的确认。
+这证明内核镜像能够在 `0x80200000` 开始执行。
 
 QEMU 运行结果如下：
 
@@ -682,14 +944,6 @@ QEMU 运行结果如下：
 内核入口和内核栈验证结果如下：
 
 ![内核入口与内核栈验证](./images/lab1_gdb_kernel.png)
-
-若 B 按分工补充完整的三跳调试过程，还应增加：
-
-```markdown
-![复位向量断点](./images/lab1_gdb_0x1000.png)
-![OpenSBI 入口断点](./images/lab1_gdb_opensbi.png)
-![内核运行输出](./images/lab1_gdb_run.png)
-```
 
 ### 5.4 `make grade` 说明
 
@@ -711,10 +965,38 @@ $(SH) tools/grade.sh
 
 ## 六、实验总结与收获
 
-> 本节由 C 负责。可结合以下要点完成：
+**负责人：** C【2411310-李镕吉】
 
-1. Makefile 不只是命令集合，还编码了源文件发现、依赖生成、目标文件分组、链接和镜像转换的依赖图。
-2. ELF 文件包含入口、段、符号和调试信息；纯 bin 不自描述，必须由加载者提供装载地址。
-3. 裸机内核不能依赖宿主标准库，编译和链接时需要关闭默认运行时，并由内核自己建立栈、清零 BSS。
-4. 链接地址、QEMU 装载地址与 OpenSBI 跳转地址必须一致。
-5. AI 可以快速给出命令和分析框架，但版本要求、真实输出和课程材料必须由成员本地复核。
+### 6.1 从源码到镜像：构建系统的隐性知识
+
+通过分析 Makefile 和链接脚本，我认识到 `make` 不只是“按顺序执行命令”，而是在描述一张依赖图。`tools/function.mk` 中的 `listf`、`toobj`、`add_files` 等函数自动发现源文件、生成编译规则、分组目标文件，最终把 `libs/` 和 `kern/` 下的 `.c` 与 `.S` 统一链接成 `bin/kernel`。理解这套机制后，排查编译错误、添加新模块或调整链接顺序都有了依据，而不是盲目修改。
+
+### 6.2 ELF 与纯二进制：两种视角的镜像
+
+`objcopy -O binary` 这一步虽然只产生一行输出，却是连接“链接器视角”与“加载器视角”的关键。ELF 是自描述的：它告诉 GDB 符号在哪、告诉 `readelf` 段该装到哪，但引导方（本实验中是 QEMU/OpenSBI）不一定有 ELF 解析器。纯二进制 `ucore.img` 取消了所有元数据，把“内存地址 ↔ 文件偏移”的映射关系压缩成最简单的线性对应，代价是加载者必须事先知道该把它放到哪里——这正是 `BASE_ADDRESS = 0x80200000` 和 `-kernel` 参数的意义。
+
+### 6.3 裸机内核的自举责任
+
+普通用户程序由操作系统加载，启动文件（crt0）由编译器提供，程序可以假设栈已建好、BSS 已清零、标准库可用。裸机内核没有这些前提，一切都要自己来：
+
+- **栈**：`kern/init/entry.S` 的第一条指令就是 `la sp, bootstacktop`，把栈切换到内核自己的内存区域；
+- **BSS 清零**：`kern_init` 用 `memset(edata, 0, end - edata)` 保证未初始化全局变量初值为 0；
+- **无标准库**：编译和链接时使用 `-nostdlib`、`-nostdinc`、`-fno-builtin`，避免引入宿主环境代码。
+
+这些细节在高级语言编程中几乎不可见，却是操作系统能够运行的地基。
+
+### 6.4 地址的一致性：链接脚本、加载器与跳转目标
+
+`0x80200000` 这个数字贯穿了整个实验：链接脚本把它作为 `.text` 的起始地址，QEMU 把它作为内核装载地址，OpenSBI 把它作为移交控制权的目标地址。三者中任何一个不一致，都会导致“代码被跳到错误位置”或“指令解析为非法操作码”。通过 GDB 在三个关键地址下断点，我们把这条地址链从“纸面约定”变成了“可验证的事实”。
+
+### 6.5 特权级与固件接口：为什么必须走 `ecall`
+
+在分析 `cprintf` → `sbi_call` → `ecall` 的调用链时，我最初困惑于“内核为什么不直接写 UART”。查阅 RISC-V 特权架构后明白：内核运行在 S 态，对物理设备的直接访问受限于具体平台和 M 态策略；OpenSBI 作为 M 态固件，提供了统一且可移植的设备抽象。`ecall` 不仅是“调用一个函数”，更是**一次特权级切换**，把内核无法直接完成的硬件操作委托给更高特权级的固件。这种分层设计保证了同一份内核代码能在 QEMU `virt` 和真实 RISC-V 板卡上运行，而无需重写设备驱动。
+
+### 6.6 AI 辅助与人工复核的平衡
+
+本次实验中，AI 工具在解析 Makefile 函数、解释链接脚本语法、设计 GDB 调试步骤和整理报告结构方面提供了很大帮助。但我们也遇到了 AI 无法自动处理的偏差：课程指定 QEMU 4.1.1，而本组环境实际使用 QEMU 8.2.2，AI 擅长生成分析框架和候选答案，但**版本兼容性、真实命令输出和课程特定约束**必须由成员在本地逐一验证，不能直接把 AI 输出当作最终结论。
+
+### 6.7 小结
+
+Lab 1 没有要求编写复杂算法，却让我第一次完整走过了“源码 → 目标文件 → ELF → 纯二进制 → 加载 → 执行 → 输出”的全链路。Makefile、链接脚本、入口汇编、BSS 清零、SBI 调用，这些看似零散的环节实际上是环环相扣的契约：链接器按脚本排布段，加载器按约定地址放镜像，固件按固定位置跳转，内核按预设边界初始化。只有当所有契约同时满足时，一行 `(THU.CST) os is loading ...` 才能最终出现在终端上。理解这些契约及其相互关系，是后续实验（中断、内存管理、进程调度）的必备基础。
