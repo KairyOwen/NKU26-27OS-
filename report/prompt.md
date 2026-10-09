@@ -123,40 +123,108 @@ Domain0 Next Address : 0x0000000000000000
 
 ## 三、B：引导链与 GDB
 
-### Prompt B-1：GDB 调试最小内核
+> 本节对应 B 负责的练习 1-3、练习 2 与 GDB 调试体验。
+> ⚠️ 若实际对话记录与下列提示词有出入，请以真实记录替换。
+
+### Prompt B-1：镜像/引导特征分析（练习 1-3）
 
 ```markdown
-请为 riscv64-ucore Lab 1 设计可复现的 GDB 调试步骤。QEMU 使用 -s -S 监听 1234 端口，GDB 使用 RISC-V 64 位架构。
+你在分析 riscv64-ucore Lab 1 的最小内核镜像，需要回答"什么样的镜像才是符合规范、可被引导的"。
 
-要求验证：
-1. 复位向量 0x1000；
-2. OpenSBI 入口 0x80000000；
-3. 内核入口 0x80200000；
-4. kern_entry 设置 sp=bootstacktop；
-5. bootstacktop-bootstack 的大小；
-6. kern_init 的 BSS 清零范围；
-7. cprintf 输出后进入 while(1)。
+可用材料：
+- tools/kernel.ld（OUTPUT_ARCH(riscv)、ENTRY(kern_entry)、BASE_ADDRESS=0x80200000、
+  .text/.rodata/.data/.sdata/.bss、. = ALIGN(0x1000)、PROVIDE(etext/edata/end)、/DISCARD/）
+- kern/init/entry.S（.section .text、.globl kern_entry、la sp/bootstacktop、tail kern_init；
+  以及 .section .data、.align PGSHIFT、bootstack、.space KSTACKSIZE、bootstacktop）
+- kern/mm/mmu.h（PGSIZE=4096、PGSHIFT=12）
+- kern/mm/memlayout.h（KSTACKPAGE=2、KSTACKSIZE=KSTACKPAGE*PGSIZE）
+- Makefile 中：$(OBJCOPY) bin/kernel --strip-all -O binary bin/ucore.img
 
-请给出每一步命令、预期现象、需要保存的截图和结果解释。每条 GDB 命令单独一行，避免多行粘贴被解析为同一条命令。
+请从以下角度说明，每一点都要指出对应的代码位置：
+1. 入口符号；
+2. 装载基址与引导方跳转地址的关系；
+3. 入口代码在镜像中的位置；
+4. 对齐要求（数据段、内核栈）；
+5. 镜像格式（bin 而非 elf）。
+
+已知实测数据：kern_entry=0x80200000，bootstack=0x80201000，bootstacktop=0x80203000。
+不要写无法从给定材料推出的结论。
 ```
 
-### Prompt B-2：分析 OpenSBI 与 loader
+### Prompt B-2：OpenSBI 加载过程分析（练习 2）
 
 ```markdown
-请分析以下 QEMU 参数在 riscv64-ucore Lab 1 中的加载行为：
+请分析 riscv64-ucore Lab 1 中"OpenSBI 加载 bin 格式 OS"的过程。
 
-qemu-system-riscv64 \
-  -machine virt \
-  -nographic \
-  -bios default \
-  -device loader,file=bin/ucore.img,addr=0x80200000
+背景事实：
+- 课程原始启动命令：
+  qemu-system-riscv64 -machine virt -nographic -bios default \
+      -device loader,file=bin/ucore.img,addr=0x80200000
+- 命令行中没有任何块设备参数（无 -drive / -hda / -device virtio-blk）
+- 课程指导书明确说明：本实验里 OpenSBI "读硬盘并加载内核"的作用并未真正发挥
 
-重点回答：
-1. QEMU、OpenSBI 和内核各自负责什么；
-2. bin/ucore.img 是谁放入 0x80200000 的；
-3. 本实验是否发生了 OpenSBI 从磁盘逐扇区读取内核；
-4. 0x1000、0x80000000、0x80200000 三个地址分别表示什么；
-5. 如何用 GDB 验证这三个阶段。
+请回答：
+1. OpenSBI 如何读取硬盘扇区？若实际未发生，说明为什么，以及镜像是谁、在哪个阶段放入内存的；
+2. OpenSBI 如何加载 bin 格式的 OS？给出从复位到内核入口的完整步骤表（谁做什么）；
+3. 为什么必须使用 bin 而不能直接把 ELF 交给引导方？bin 相对 ELF 的代价是什么？
+
+另补充一个版本差异问题：
+- 课程指定 QEMU 4.1.1，此时 OpenSBI 跳转地址为 0x80200000；
+- Ubuntu 24.04 自带的 QEMU 8.2.2 下，用 -device loader 时 OpenSBI 报告的
+  Domain0 Next Address 是 0x0，改用 -kernel 才变为 0x80200000。
+请解释该差异的原因及其对实验的影响。
+
+要求：区分"课程设计意图"与"我们实际观察到的现象"，不要把推测写成定论。
+```
+
+### Prompt B-3：GDB 调试步骤设计
+
+```markdown
+请为 riscv64-ucore Lab 1 设计可复现的 GDB 调试步骤。QEMU 用 make debug（-s -S）监听 1234 端口，
+GDB 用 riscv64-unknown-elf-gdb，架构 riscv:rv64。
+
+覆盖以下要点，并给出每步的命令、预期现象与结果解释：
+1. 三个关键地址 0x1000、0x80000000、0x80200000 分别是什么；
+2. 在 0x80200000 下断点，确认 PC 落在 kern_entry；
+3. 查看进入 kern_entry 时的 sp，与 &bootstacktop 对比；
+4. 单步执行 la sp, bootstacktop 后，验证 sp == &bootstacktop；
+5. 计算 bootstacktop - bootstack，与 KSTACKPAGE*PGSIZE 对照；
+6. 找到 kern_init 地址并进入，确认 BSS 清零所依赖的 edata/end；
+7. 确认内核最终停在 while(1) 对应的自跳转指令上。
+
+输出要求：每条 GDB 命令单独一行，并说明为什么要下这个断点、看这个寄存器。
+```
+
+### Prompt B-4：GDB 多行粘贴报错排查
+
+```markdown
+在 riscv64-unknown-elf-gdb 中一次性粘贴多条命令时出现：
+
+Junk after item "riscv:rv64"
+No symbol "p" in current context.
+
+请问：这是什么原因？应如何规避？请给出正确的逐条操作顺序。
+```
+
+### Prompt B-5：实验整体逻辑主线梳理
+
+```markdown
+请为 riscv64-ucore Lab 1（最小可执行内核）梳理实验报告"三、实验整体逻辑分析"一节。
+
+背景材料：
+- 内存掉电即失，操作系统不能存放在内存中；
+- CPU 读取持久化设备需要驱动程序，而驱动程序本身也存在该设备上；
+- RISC-V 上由 OpenSBI 固件打破这个循环（随 QEMU 提供，运行在 M 态）；
+- 地址链：0x1000 复位向量 → 0x80000000 OpenSBI → 0x80200000 内核入口 kern_entry；
+- 内核入口先设 sp = bootstacktop，再 kern_init 清零 BSS，最后经 SBI 输出并进入 while(1)。
+
+请分两部分输出：
+1. 「本章节的逻辑主线」：说明本章要解决的核心问题、为什么无法自举、固件如何打破循环、
+   以及贯穿全章的那条地址链；
+2. 「功能的逐步实现」：说明为什么要按"先能编译 → 再能装载 → 然后建立运行环境 →
+   最后能输出并验证"这个顺序推进，每一步为下一步提供了什么前提。
+
+要求：用我们自己组织的语言，不要照抄指导书原文；不要复述后文（练习 1-1/1-2/1-3）的技术细节。
 ```
 
 ## 四、C：链接脚本与输出链路
