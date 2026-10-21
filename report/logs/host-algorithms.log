@@ -1,0 +1,9 @@
+Unmodified Best-Fit framework tests: PASS (host adapter)
+best_fit_pmm_manager: 10000 mixed operations, no overlap, accounting restored: PASS
+[Buddy] rounding, split, recursive merge: PASS
+[Buddy] adjacent non-buddies stay separate: PASS
+[Buddy] irregular range, exhaustion, no overlap: PASS
+[Buddy] real memory and accounting recovery: PASS
+[Buddy] ALL TESTS PASSED
+buddy_pmm_manager: 10000 mixed operations, no overlap, accounting restored: PASS
+HOST ALGORITHM CHECKS PASSED; guest boot/page_init not tested here.

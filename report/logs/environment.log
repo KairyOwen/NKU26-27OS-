@@ -1,0 +1,9 @@
+2026-10-21T18:31:25+08:00
+Linux LAPTOP-2TP6VF0Q 6.18.33.2-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Thu Jun 18 21:54:43 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux
+QEMU executable: /home/lenovo/opt/qemu-4.1.1/bin/qemu-system-riscv64
+QEMU emulator version 4.1.1
+riscv64-unknown-elf-gcc (13.2.0-11ubuntu1+12) 13.2.0
+GNU gdb (Ubuntu 15.1-1ubuntu1~24.04.1) 15.1
+GNU Make 4.3
+Python 3.12.3
+/usr/bin/bc
