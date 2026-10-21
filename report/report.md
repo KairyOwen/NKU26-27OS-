@@ -5,26 +5,26 @@
 | 项目 | 内容 |
 |------|------|
 | **实验名称** | Lab 2：物理内存和页表 |
-| **小组成员** | 2412101-张哲宇、2410683-刘梓涵、2411310-李熔吉 |
-| **完成日期** | 2026-10-21 |
+| **小组成员** | 2412101-张哲宇、2410683-刘梓涵、2411310-李镕吉 |
+| **完成日期** | 2026-10-22 |
 
 ### 小组分工
 
-练习如何分工？
+练习分工：
 
 | 成员 | 负责的练习/模块 |
 |------|----------------|
 | 2412101-张哲宇 | page_init、环境与统一接入、最终测试和提交；协助准备 QEMU 调试环境 |
 | 2410683-刘梓涵 | Buddy 实现与测试；Sv39 和 QEMU 源码 GDB 分支任务 |
-| 2411310-李熔吉 | First-Fit 分析、Best-Fit 实现与分析；协助 Buddy 测试复核、提示词汇总 |
+| 2411310-李镕吉 | First-Fit 分析、Best-Fit 实现与分析；协助 Buddy 测试复核、提示词汇总 |
 
-实验报告如何分工？
+报告分工：
 
 | 成员 | 报告内容 |
 |------|----------|
 | 张哲宇 | 环境、物理内存初始化、最终测试与整合 |
 | 刘梓涵 | Buddy、页表与 TLB 调试、对应测试解释 |
-| 李熔吉 | First-Fit/Best-Fit 分析、提示词和格式核对 |
+| 李镕吉 | First-Fit/Best-Fit 分析、提示词和格式核对 |
 
 本报告依据小组本轮实际代码、终端记录与截图编写。QEMU 4.1.1 下 Best-Fit 启动、课程评分 20/20、Buddy 行为测试，以及宿主/客体双 GDB 的页表查询、地址转换、软件 TLB 填充与命中查找均已有实际运行结果。算法辅助检查与客体实测分别记录，不用课程评分代替其他任务证据。
 
@@ -55,13 +55,13 @@
 | 实验目录 | ~/os-labs/lab2/code |
 | 评分依赖 | bc 位于 /usr/bin/bc |
 
-你们使用的 AI 工具：
+AI 工具：
 
 | 成员 | AI 编程工具 | 底层模型 | 备注 |
 |------|------------|---------|------|
 | 张哲宇 | Codex 桌面应用 | 未记录具体型号 | 本轮统一辅助实现、检查与操作指导 |
 | 刘梓涵 | 本轮由组长的 Codex 会话统一辅助 | 未单独记录 | 姓名表示分工责任，不表示另有个人 AI 会话 |
-| 李熔吉 | 本轮由组长的 Codex 会话统一辅助 | 未单独记录 | 姓名表示分工责任，不表示另有个人 AI 会话 |
+| 李镕吉 | 本轮由组长的 Codex 会话统一辅助 | 未单独记录 | 姓名表示分工责任，不表示另有个人 AI 会话 |
 
 AI 工具名称与底层模型版本分别记录，不能只凭工具名推断模型。本轮另外在 Windows MSVC x64 原生适配环境验证分配器算法；该结果与 RISC-V 实测分开记录。
 
@@ -140,7 +140,7 @@ OS 可以从启动固件或引导程序提供的硬件描述获取内存布局�
 
 ### 功能模块二任务一：理解 First-Fit
 
-**负责人：** 2411310-李熔吉。
+**负责人：** 2411310-李镕吉。
 
 default_init 初始化空闲链表头并清零 nr_free。default_init_memmap 清除新注册页面的保留状态，重置引用计数，在首描述符记录块长度，按地址放入链表，并增加空闲页总量。
 
@@ -152,7 +152,7 @@ default_free_pages 重置回收页面状态，按地址插入空闲链表。先�
 
 ### 功能模块二任务二：实现 Best-Fit
 
-**负责人：** 2411310-李熔吉。
+**负责人：** 2411310-李镕吉。
 
 #### 模块功能描述
 
@@ -244,7 +244,11 @@ QEMU 4.1.1 实际输出四组 PASS、[Buddy] ALL TESTS PASSED、check_alloc_page
 
 **负责人：** 2410683-刘梓涵；张哲宇协助环境。
 
-已在独立 qemu-4.1.1-debug-build 目录使用 --enable-debug、--target-list=riscv64-softmmu、--disable-werror、--disable-docs 和 Python 3 配置并编译成功。configure 显示 CFLAGS=-g、TCG debug enabled yes；file 显示 x86-64、with debug_info、not stripped。保留原安装版，无需覆盖安装。宿主和客体分别使用一个 gdb-multiarch 实例；宿主根据 QEMU ELF 自动采用 x86-64，客体显式设置 riscv:rv64，不能把两个调试目标混淆。
+#### 模块功能描述
+
+本模块在宿主/客体两层调试器下动态观察一次内核取指如何从 Sv39 虚拟地址翻译为物理地址、如何被填入 QEMU 软件 TLB，并对照 QEMU 4.1.1 源码确认调用链。观测对象是 ucore lab2 内核镜像，不改内核和 Makefile；宿主 GDB 调试 QEMU 本体，客体 GDB 调试 RISC-V 内核，两端各用一个独立调试器会话。
+
+首轮环境中，已在独立 qemu-4.1.1-debug-build 目录使用 --enable-debug、--target-list=riscv64-softmmu、--disable-werror、--disable-docs 和 Python 3 配置并编译成功。configure 显示 CFLAGS=-g、TCG debug enabled yes；file 显示 x86-64、with debug_info、not stripped。保留原安装版，无需覆盖安装。宿主和客体分别使用一个 gdb-multiarch 实例；宿主根据 QEMU ELF 自动采用 x86-64，客体显式设置 riscv:rv64，不能把两个调试目标混淆。
 
 静态源码已核对 QEMU v4.1.1：target/riscv/cpu_helper.c 包含 get_physical_address 和 riscv_cpu_tlb_fill；后者调用前者并在成功后调用 tlb_set_page。accel/tcg/cputlb.c 的 load_helper/store_helper 检查 TLB，未命中时可能尝试 victim TLB 或进入 tlb_fill，再调用架构回调；TCG 生成的快速访存路径也需结合源码说明，不能把 C 慢路径当成每次访存必经路径。
 
@@ -264,7 +268,90 @@ QEMU 4.1.1 实际输出四组 PASS、[Buddy] ALL TESTS PASSED、check_alloc_page
 
 Bare 模式在适用特权和访问条件下不进行 Sv39 多级页表翻译，但不能据此断言 QEMU 完全不使用软件 TLB：后者还服务于宿主内存访问、权限及 RAM/MMIO 路径。真实 CPU 的硬件 TLB 缓存地址翻译，而 QEMU 软件 TLB 在模拟器中还保存宿主访问所需的信息，二者不是同一个结构。M 模式和 MPRV 等条件也影响翻译路径，不能只看 satp 就概括所有访问。
 
-调试问题如实记录：首次条件断点长命令被终端换行截断，改用页号右移比较解决；重复设置的同址断点通过 delete 2 清理；系统库 ppoll.c 缺失只影响系统库源码显示，不影响 QEMU 源码调试。指导过程中曾预期 helper 直接输出完整字节 PA，实测和源码表明应区分页基址与页内偏移，已据实纠正。
+#### 最终提示词
+
+由 prompt.md 的 P6 提炼的自包含任务规格；报告正文只记录该规格的要点：
+
+```text
+输入：QEMU 4.1.1 源码与独立 --enable-debug 构建；code/ 下的 ucore lab2 镜像和
+      code/obj/kernel 符号；宿主 GDB 与客体 RISC-V GDB 两个调试器实例。
+目标：宿主调试器附加 QEMU 进程，依据真实源码定位 target/riscv/cpu_helper.c 的
+      riscv_cpu_tlb_fill、get_physical_address 和 accel/tcg/cputlb.c 的
+      tlb_set_page 与 TLB 查找路径；客体调试器经 gdbstub 连接 localhost:43210
+      控制 ucore，逐步读出 satp、priv、根页表基址、idx、pte_addr、PTE、
+      返回物理地址，并记录一次 tlb_set_page 的填充参数。
+约束：用条件断点把观测限制在内核取指页；确认根层大页叶子，不强行假设三级查询；
+      区分 helper 返回的物理页基址与加上页内偏移后的完整字节 PA；
+      宿主暂停时客体 GDB 等待是正常现象；不改内核与 Makefile，不修改镜像。
+判定：日志中能逐项找到 satp、pte_addr/PTE、physical、完整字节 PA 与
+      tlb_set_page 参数；宿主与客体读数交叉一致；结论只引用实际观察，
+      不把源码推导写成动态命中或回填完成的证据，每个关键节点明确截图时机。
+```
+
+#### 实现迭代过程
+
+调试不是一次命中，按“问题→处理→结果”记录如下；各项均能对应 code/tools/gdb/ 下的脚本与 README，或 report/logs/ 中的日志（首轮日志在 report/logs/gdb-host.log，第二环境日志在 report/logs/gdb-b/）。
+
+1. **QEMU 版本选择**：本机 PATH 默认的 `/opt/qemu/bin/qemu-system-riscv64` 是 7.0.0，其固件与符号均与 4.1.1 不同，不能用于本实验的启动与调试观测；用同一镜像实测该 QEMU 跑 make grade 为 0/20（两项 WRONG，见 report/logs/repro-b/grade-with-default-qemu-7.0.0.log）。处理：源码编译 QEMU 4.1.1（串口显示 OpenSBI v0.4、Runtime SBI 0.1），加 --enable-debug 保留调试符号，装在独立目录，不覆盖原安装版；脚本显式使用该 4.1.1。结果：make grade 为 20/20（report/logs/repro-b/grade-20-of-20.log），宿主 GDB 能显示 QEMU 源码行号并命中 TLB 路径断点（版本记录见 report/logs/gdb-b/environment.log 与 code/tools/gdb/README.md）。
+2. **端口占用**：QEMU gdbstub 默认端口 1234 被 Windows 端微信（Weixin.exe）占用，QEMU 无法监听。处理：全部脚本统一改用 43210（`-gdb tcp::43210`），客体脚本用 `target remote localhost:43210` 连接，脚本注释与 README 写明原因。结果：双 GDB 均可正常连接。
+3. **宿主附加权限**：WSL 2 每次实例重启都会把 kernel.yama.ptrace_scope 重置为 1；host GDB 用 `-p` 附加 QEMU 时被 Yama ptrace 策略拒绝（报错 `Could not attach to process ... ptrace_scope`），失败运行的日志已被随后的成功运行覆盖、未单独归档。处理：在同一个 WSL 会话内执行 `sudo sysctl -w kernel.yama.ptrace_scope=0` 后再运行。结果：`gdb <qemu-elf> -p <qemu-pid>` 成功进入 QEMU 进程（记录见 code/tools/gdb/README.md；gdb-b/environment.log 实测当时该值为 1）。
+4. **客体 GDB 可用性**：以 root 用非登录 shell 切换用户运行时，PATH 不含 ~/riscv/bin，脚本找不到 riscv64-unknown-elf-gdb。处理：改用登录 shell（工具链位于 ~/riscv/bin 且已写入 PATH）重跑。结果：客体 GDB 正常连接 gdbstub（README 记录；该失败日志未归档）。
+5. **长条件断点被截断**：首次把地址区间条件写成一行长命令，被终端换行截断，GDB 报语法错误（report/logs/gdb-host.log 第 1-2 行）。处理：改为 `(address >> 12) == 0xffffffffc0200` 的页号比较。结果：条件断点生效并在 riscv_cpu_tlb_fill 命中（report/logs/gdb-host.log 第 11 行条件生效、第 27 行命中）。
+6. **重复同址断点**：同一位置被重复设置，出现 Breakpoint 1/2 并存（report/logs/gdb-host.log 第 17-23 行）。处理：`delete 2` 删除重复项后只保留一个断点。结果：命中记录唯一，便于读取变量。
+7. **系统库源码缺失**：宿主停在 ppoll 时提示 `ppoll.c: No such file or directory`（report/logs/gdb-host.log 第 88 行）。处理：确认裸露的系统库调试信息缺失只影响系统库源码显示。结果：QEMU 源码断点、变量读取和调用链均不受影响。
+8. **helper 输出粒度预期错误**：指导过程中曾预期 get_physical_address 直接给出完整字节 PA。处理：实测返回的是 4 KiB 物理页基址 0x80200000（report/logs/gdb-host.log 第 62-67 行），需再加 VA 低 12 位偏移 0xd6 得到 0x802000d6。结果：对“页基址/字节地址”的表述据实纠正，未把 physical=0x80200000 误判为翻译失败。
+9. **Bare 模式断点**：分页未开启时 CPU 处于 Bare，kern_entry 只能用物理地址 0x80200000 下断；satp 尚未写入时也不能用虚拟地址断 kern_init，否则 QEMU 按 Bare 翻译虚拟地址会失败。处理：客体脚本先停在 kern_entry，单步到 satp 写入并执行 sfence.vma 之后再设置 kern_init 断点。结果：客体在 Sv39 已开启的状态下命中 kern_init。
+10. **satp 开启后的反汇编**：写 satp 后 PC 寄存器里是物理地址，直接 `x/2i 0x80200038` 会报 `Cannot access memory`。处理：加直接映射偏移 0xffffffff40000000 换算为虚拟地址后再反汇编（见 guest.gdb 脚本注释）。结果：单步上下文正确对齐到 entry.S。
+11. **双 GDB 时序**：若客体先停在 kern_entry、宿主再 continue，会把 vCPU 一起放行，客体 GDB 再 continue 会报 `Cannot execute this command while the target is running`；若宿主先附加，QEMU 停在复位、客体又无法就位。处理：固定为“客体连接并停住 CPU → 宿主 attach 安装断点 → 客体 detach 放行”的顺序，用 `/tmp/guest_ready`、`/tmp/host_ready` 两个标志文件同步（run-dual-detach.sh / run-dual-reset.sh）。结果：双 GDB 交替控制不再抢跑，宿主能看到从 OpenSBI 到 Bare 取指、再到首次 Sv39 页表查询的完整序列。
+12. **SIGPIPE 干扰**：QEMU 向已关闭的终端写数据时，宿主 GDB 默认会停在 SIGPIPE 上，打乱继续/单步时序。处理：宿主脚本设置 `handle SIGPIPE nostop noprint pass`。结果：调试会话不再被该信号打断。
+13. **日志可读性**：同一次运行中同一页可能被多次填充，重复打印会淹没有效记录。处理：脚本用一次性标志（如 `$bare_seen`、`$code_fill_logged`、`$data_fill_logged`）只记录首次命中，并把宿主、客体与串口输出分别写入日志文件。结果：每次运行的证据可按文件定位，见 report/logs/gdb-b/。
+
+#### 双 GDB 复现（刘梓涵环境）
+
+本节是把已交付的 code/tools/gdb/ 脚本在第二台 WSL 2 机器上重新运行得到的独立复现，不是另一套实现；用途是交叉核对首轮观测与当前 lab2 构建布局，数值以日志为准。
+
+环境版本（report/logs/gdb-b/environment.log 实测）：
+
+| 项目 | 实际值 |
+|------|--------|
+| 宿主 | Windows + WSL 2，Ubuntu 26.04 LTS，内核 6.18.33.2-microsoft-standard-WSL2，18 CPU / 15 GiB，用户 hanmiao33 |
+| QEMU | 4.1.1 源码编译（--enable-debug），`$HOME/qemu-4.1.1/riscv64-softmmu/qemu-system-riscv64`；PATH 上的 `/opt/qemu/bin` 为 7.0.0，本实验不使用 |
+| 交叉编译器 | riscv64-unknown-elf-gcc 16.1.0，binutils 2.47 |
+| 宿主 GDB | /usr/bin/gdb 17.1 |
+| 客体 GDB | riscv64-unknown-elf-gdb 17.2 |
+| gdbstub 端口 | 43210（1234 被 Windows 微信占用） |
+| ptrace | 环境日志实测 kernel.yama.ptrace_scope=1；WSL 重启会重置为 1，运行脚本前需在同一会话内设为 0 |
+| Make / Python | GNU Make 4.4.1 / Python 3.14.4 |
+
+复现命令与流程：
+
+1. `cd code && make clean && make`：默认 best_fit 构建，与报告其余证据使用同一份代码（本次执行等价命令 `make -j4`；构建日志见 report/logs/repro-b/build-best-fit.log）。
+2. `sh tools/gdb/run-dual-reset.sh`：脚本以 `-S` 启动 QEMU 并开 `-gdb tcp::43210`；客体 GDB 先连接复位向量（pc=0x1000）并停住、写 `/tmp/guest_ready` 等宿主；宿主 GDB 用 `gdb <qemu-elf> -p <qemu-pid>` attach，加载 tools/gdb/host.gdb 安装断点、写 `/tmp/host_ready`；客体 GDB detach 后 QEMU 从复位开始运行，宿主从 OpenSBI 依次观察到 Bare 首取指、Sv39 取指与 memset 数据 store。
+3. `sh tools/gdb/run-guest-gdb.sh`：客体脚本 tools/gdb/guest.gdb 从 kern_entry 单步打开 satp，在 kern_init 读取 boot_page_table_sv39[511]，在 memset 入口记录参数；QEMU 同时以 `-d mmu` 生成 mmu.log。
+
+实测数值（逐项来自 report/logs/gdb-b/；页表遍历与取指翻译与首轮一致，数据 store 的翻译与 TLB 填充为本环境新增观测）：
+
+| 观测点 | 实测值 | 日志 |
+|--------|--------|------|
+| 客体 kern_entry | pc=0x80200000、satp=0（Bare） | guest-gdb.log 第 8-11 行 |
+| 客体写 satp 后 | 15 次 stepi 后 satp=0x8000000000080205、pc=0x80200038 | guest-gdb.log 第 34-38 行 |
+| 客体 kern_init | pc=0xffffffffc02000d6、satp=0x8000000000080205 | guest-gdb.log 第 44-47 行 |
+| 客体 PTE[511] | VA 0xffffffffc0205ff8 → 0x200000cf，satp PPN=0x80205 | guest-gdb.log 第 48-50 行 |
+| 客体 memset 入口 | a0(s)=0xffffffffc0206018、a1(c)=0、a2(n)=0x60 | guest-gdb.log 第 57-60 行 |
+| 宿主 Bare 取指 | tlb_fill(0x80200000, MMU_INST_FETCH, mmu_idx=1) → Bare 分支 *physical=0x80200000 | host-gdb.log 第 17-23 行 |
+| 宿主 Sv39 取指 | VA 0xffffffffc02000d6 → satp=0x8000000000080205、priv=1、i=0、idx=511、pte_addr=0x80205ff8、pte=0x200000cf、physical=0x80200000（字节 PA 0x802000d6） | host-gdb.log 第 25-36 行 |
+| 宿主 TLB 填充（取指） | vaddr_page=0xffffffffc0200000、paddr=0x80200000、index=0；mmu_idx=1（tlb_fill 上下文，第 25 行） | host-gdb.log 第 25、35-36 行 |
+| 宿主数据 store | VA 0xffffffffc0206018 → physical=0x80206000（字节 PA 0x80206018 = 页基址 0x80206000 + VA 低 12 位 0x18） | host-gdb.log 第 38-45 行 |
+| 宿主 TLB 填充（数据） | vaddr_page=0xffffffffc0206000、paddr=0x80206000、index=6 | host-gdb.log 第 46-47 行 |
+| mmu.log 交叉核对 | 取指 VA 0xffffffffc02000d6 与数据 VA 0xffffffffc0206018 均 ret 0，physical 分别为 0000000080200000、0000000080206000，prot 7 | mmu.log 第 89-90、95-96 行 |
+
+tlb_set_page 的调用参数：vaddr_page=0xffffffffc0200000、paddr=0x80200000 在 cputlb.c:836（tlb_set_page_with_attrs 内 tn 填充处）实测；mmu_idx=1 由 tlb_fill 上下文实测；prot=7（PAGE_READ|PAGE_WRITE|PAGE_EXEC）由 cpu_helper.c 调用点与 mmu.log 中该页翻译返回的 prot 7 确定；size=TARGET_PAGE_SIZE=0x1000，是该版本 4 KiB 填充粒度。tn.addr_read/addr_write/addr_code 也一并写入 host-gdb.log 第 36 行。
+
+构建布局与 A 环境的一致性：完整串口输出（serial-reset.log）实测 entry=0xffffffffc02000d6、etext=0xffffffffc02016be、edata=0xffffffffc0206018、end=0xffffffffc0206078、free begin=0x80347000、satp VA=0xffffffffc0205000 / PA=0x80205000。其中 edata、end、boot_page_table_sv39 与空闲起点与 A 环境（report/logs/best-fit.log）完全一致；唯一差异是 etext 0xffffffffc02016be 对 A 环境的 0xffffffffc02016b0，相差 0xe 即 14 字节，原因是交叉编译器版本不同（13.2.0 对 16.1.0）。该差异只影响 .text/.rodata 的长度，.data 段按 4 KiB 对齐后的地址不变（实测 edata、end 相同），因此上述关键地址和 GDB 观测值可直接对照。
+
+与首轮环境的两处配置差异：gdbstub 端口由默认 1234 改为 43210（1234 被 Windows 微信占用）；宿主 GDB attach 前必须在同一个 WSL 会话内把 kernel.yama.ptrace_scope 置 0（WSL 重启会重置为 1）。
+
+日志位置：report/logs/gdb-b/ 下，run-dual-reset.sh 产出 guest-reset.log、host-gdb.log、host-stdout.log、serial-reset.log、qemu-reset.log；run-guest-gdb.sh 产出 guest-gdb.log、mmu.log、serial.log、qemu.log；environment.log 为环境版本记录。serial.log 在客体 detach 后 QEMU 被脚本立即终止，末尾截断属真实行为，完整启动输出看 serial-reset.log。复现构建、Buddy 与 grade 的日志在 report/logs/repro-b/。本轮复现以完整日志作为证据，未新增截图；报告中 GDB 截图均来自首轮环境（report/images/），其数值与本节日志一致。
 
 ### Challenge：SLUB
 
@@ -283,7 +370,10 @@ Bare 模式在适用特权和访问条件下不进行 Sv39 多级页表翻译，
 | Windows 原生算法检查 | 已通过 | 真实分配器源文件的算法行为，不包含硬件启动 |
 | 修订后的 validate.sh | 已在 Ubuntu 复核通过 | 非交互启动、30 秒超时和默认 Best-Fit 恢复 |
 | 双 GDB 分支 | 页表查询、地址转换、TLB 填充、客体交叉核对与取指 TLB 命中均已实测 | 页表层级、页基址/字节地址及缓存路径 |
+| 独立复现（2410683 环境） | 另一台 WSL 2 机器重新构建后 Best-Fit 布局与报告一致（end=0xffffffffc0206078、free begin=0x80347000、satp PA=0x80205000）；Buddy 配置四组 PASS + check_alloc_page() succeeded；显式指定 QEMU 4.1.1 重跑 make grade 20/20（PATH 默认 7.0.0 同一镜像为 0/20）；双 GDB 日志见 report/logs/gdb-b/ | 日志见 report/logs/repro-b/ 与 report/logs/gdb-b/；同一交付在另一环境的构建与运行可复现，不替代首轮证据 |
 | 截图归档 | 四张基础截图已复制并检查 | 环境、Best-Fit、课程评分和 Buddy |
+
+独立复现（2410683 环境）：在另一台 WSL 2 机器上重新构建同一份交付代码后，Best-Fit 启动输出的 entry/edata/end、free begin 与 satp VA/PA 与报告一致（etext 因编译器版本不同差 14 字节，原因见分支任务一节）；`make PMM=buddy` 的 Buddy 配置四组 PASS 且 check_alloc_page() succeeded；显式指定 QEMU 4.1.1 重跑 make grade 为 20/20，而同一镜像直接用 PATH 默认的 QEMU 7.0.0 跑 grade 为 0/20，说明必须显式指定 4.1.1。构建、启动、Buddy 与两份 grade 日志见 report/logs/repro-b/，双 GDB 日志见 report/logs/gdb-b/。这是同一交付在另一台机器上的重跑，不构成第二套实现，也不改变首轮结论。构建命令为 `make clean && make`（默认 Best-Fit）与 `make clean && make PMM=buddy`（Buddy 复现）；grade 对照显式指定 `QEMU=~/qemu-4.1.1/riscv64-softmmu/qemu-system-riscv64`（详见 code/tools/gdb/README.md）。
 
 已收到的课程评分输出：
 
