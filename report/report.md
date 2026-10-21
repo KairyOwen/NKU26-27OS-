@@ -60,10 +60,10 @@ AI 工具：
 | 成员 | AI 编程工具 | 底层模型 | 备注 |
 |------|------------|---------|------|
 | 张哲宇 | Codex 桌面应用 | 未记录具体型号 | 本轮统一辅助实现、检查与操作指导 |
-| 刘梓涵 | 本轮由组长的 Codex 会话统一辅助 | 未单独记录 | 姓名表示分工责任，不表示另有个人 AI 会话 |
+| 刘梓涵 | 组长 Codex 会话（实现阶段）；DeepSeek Harness（交付复核/复现阶段） | 未记录 / DeepSeek-V4.1-Flash | 复核阶段仅用于 GDB 脚本迁移与证据核对，未生成内核实现代码 |
 | 李镕吉 | 本轮由组长的 Codex 会话统一辅助 | 未单独记录 | 姓名表示分工责任，不表示另有个人 AI 会话 |
 
-AI 工具名称与底层模型版本分别记录，不能只凭工具名推断模型。本轮另外在 Windows MSVC x64 原生适配环境验证分配器算法；该结果与 RISC-V 实测分开记录。
+AI 工具名称与底层模型版本分别记录，不能只凭工具名推断模型。本轮另外在 Windows MSVC x64 原生适配环境验证分配器算法；该结果与 RISC-V 实测分开记录。第二环境复现由 2410683 在其 WSL 环境执行。
 
 ---
 
@@ -80,6 +80,8 @@ AI 工具名称与底层模型版本分别记录，不能只凭工具名推断�
 3. page_init 校验内存范围、设置地址偏移和描述符布局，保留固件/内核/元数据，将剩余完整页面通过 init_memmap 注册。
 4. alloc_pages/free_pages 通过管理器回调分配、拆分、回收和合并；nr_free_pages 反映空闲物理页数。
 5. 运行框架检查、课程评分及 Buddy 自设计测试；GDB 分支进一步从模拟器实现观察地址翻译。
+
+构建与评分配置：Makefile 相对原始代码包仅新增 PMM 选择开关（`PMM ?= best_fit`，`PMM=buddy` 时追加 `-DPMM_USE_BUDDY`）与 gdb 目标的 `$(GDB)` 变量替换；tools/grade.sh、tools/test_lab2.c、tools/test_lab2.h 等课程评分/测试文件与原始包逐字节一致，未修改评分逻辑。
 
 ---
 
@@ -130,7 +132,11 @@ static void page_init(void);
 
 #### 实现迭代过程
 
-本轮先阅读代码与评分约束，再实现函数。用户在 QEMU 4.1.1 上实际编译和启动成功，课程 page init 检查为 OK。初版验证脚本未捕获启动输出，直接启动同一镜像后成功；这是需要修复的验证流程问题，未据此伪造内核失败或通过。脚本修订和复核情况见测试章节。
+**第 1 次迭代**：按 P1 实现 page_init——读取 DTB 的 base/size，校验零长度、溢出和固定启动映射范围，按页设置 va_pa_offset、npage 与描述符数组，排除固件/内核/元数据后注册空闲区。
+
+**问题与修订**：初版验证脚本在嵌套管道中运行 QEMU，未捕获固件输出，无法判定启动结果（见 prompt.md 实际迭代记录第 4 条）；这是验证流程问题，不是内核失败。处理：直接启动同一镜像确认成功，并修订脚本为直接调用 QEMU、stdin=/dev/null、显式 30 秒超时、去掉外层函数管道。结果：课程 page init 检查为 OK。
+
+**关键改进点总结**：DTB 范围（零长度/溢出/映射支持）校验；npage 上界与描述符数组容量检查；OpenSBI、内核镜像、描述符等保留区排除；空闲起点按页向上对齐，只在存在完整页面时注册。脚本修订与复核详情见测试章节。
 
 ### 练习：硬件可用物理内存范围获取方法（Challenge 思考题）
 
@@ -141,6 +147,15 @@ OS 可以从启动固件或引导程序提供的硬件描述获取内存布局�
 ### 功能模块二任务一：理解 First-Fit
 
 **负责人：** 2411310-李镕吉。
+
+本节是阅读分析任务，不生成代码；First-Fit 分析作为 prompt.md 中 P2（Best-Fit 实现规格）的参考背景，未单列 prompt。分析验收标准是能解释初始化、按地址组织、首次匹配、拆分、回收合并与改进空间。
+
+```c
+static void default_init(void);
+static void default_init_memmap(struct Page *base, size_t n);
+static struct Page *default_alloc_pages(size_t n);
+static void default_free_pages(struct Page *base, size_t n);
+```
 
 default_init 初始化空闲链表头并清零 nr_free。default_init_memmap 清除新注册页面的保留状态，重置引用计数，在首描述符记录块长度，按地址放入链表，并增加空闲页总量。
 
@@ -184,7 +199,13 @@ basic_check() 和 best_fit_check() 完整保留，已与压缩包正文比较确
 
 #### 实现迭代过程
 
-补齐实现后，原生适配测试通过保留的框架检查和 10000 次混合操作。用户随后在 Ubuntu 使用课程原始 loader 参数启动，输出 memory management: best_fit_pmm_manager 和 check_alloc_page() succeeded!；make grade 实际得到两个 OK、20/20。
+**第 1 次迭代**：按 P2 实现 best_fit 的全部管理回调与 best_fit_pmm_manager，直接实现分配扫描、拆分、按地址回收和前后合并。
+
+**问题与修订**：课程骨架 best_fit_pmm.c 中 basic_check/best_fit_check 引用了 free_list/nr_free，但骨架本身未定义这些内部状态（free_area 是实现者自定义的容器），首版直接编译报未定义；与原始包正文比对确认是骨架预留后，按框架约定补 `static free_area_t` 与 free_list/nr_free 宏（不改两个测试函数），随后编译通过。
+
+**第 2 次迭代**：接入默认管理器（pmm.c 默认选 best_fit_pmm_manager）并验证：Windows 原生适配保留 basic_check/best_fit_check 并跑 10000 次混合操作通过；QEMU 4.1.1 启动输出 memory management: best_fit_pmm_manager 与 check_alloc_page() succeeded!；make grade 得到两个 OK、Total Score 20/20。
+
+**关键改进点总结**：按地址组织空闲链表以支持合并；扫描选择最小可容纳块、同大小优先低地址；精确匹配不拆分、较大块只保留尾块；释放时按地址插入并检查前后合并；分配/释放精确维护 nr_free 与页状态。
 
 ### 功能模块二任务三：Buddy System
 
@@ -232,13 +253,13 @@ free_pages 使用原请求 n，回收完整取整块，检查分配首地址和�
 
 #### 实现迭代过程与测试有效性
 
-先实现管理器，再通过独立源文件检查外部行为：3 页请求导致空闲数减少 4，验证向上取整；释放后能重新分配 32 页，验证拆分后多级合并；只注册页号相邻但非伙伴的两页，断言 2 页分配失败，排除“任意相邻都合并”的错误。
+**第 1 次迭代**：先实现管理器，再通过独立源文件检查外部行为：3 页请求导致空闲数减少 4，验证向上取整；释放后能重新分配 32 页，验证拆分后多级合并；只注册页号相邻但非伙伴的两页，断言 2 页分配失败，排除“任意相邻都合并”的错误。注册起始偏移 3、长度 61 的隔离区，逐页耗尽并检查地址唯一、边界和保留标记，交错释放后验证统计恢复与 32 页块可用；超出剩余总量或最大阶数的请求返回 NULL。隔离测试暂时替换描述符视图，完成后恢复真实视图并重建初始单一连续空闲区；本框架 page_init 只注册一个连续空闲区，这是该检查恢复过程的前提，不声称支持任意多个初始空闲区的原样快照恢复。
 
-注册起始偏移 3、长度 61 的隔离区，逐页耗尽并检查地址唯一、边界和保留标记，交错释放后验证统计恢复与 32 页块可用；超出剩余总量或最大阶数的请求返回 NULL。真实空闲区再验证不同大小分配、对齐、两两不重叠和全部释放后计数恢复。
+**问题与修订**：初版 Buddy 运行脚本在嵌套管道下同样未捕获固件输出，report/logs/buddy.log 只有 42 字节（`make: *** [Makefile:170: qemu] Terminated`），无法据此判定测试结果；处理为直接运行同一镜像/修订后的脚本，不把脚本问题当成内核失败。
 
-隔离测试暂时替换描述符视图，完成后恢复真实视图并重建初始单一连续空闲区。本框架 page_init 只注册一个连续空闲区，这是该检查恢复过程的前提，不声称支持任意多个初始空闲区的原样快照恢复。测试尚未覆盖所有非法输入导致的 panic 分支或并发。
+**第 2 次迭代**：在真实空闲区验证不同大小分配、对齐、两两不重叠和全部释放后计数恢复；QEMU 4.1.1 实际输出四组 PASS、[Buddy] ALL TESTS PASSED、check_alloc_page() succeeded!，与原生适配结果一致。
 
-QEMU 4.1.1 实际输出四组 PASS、[Buddy] ALL TESTS PASSED、check_alloc_page() succeeded!，与原生适配结果一致。
+**关键改进点总结**：分配首描述符记录原始请求长度、free_pages 必须传原请求 n 并整块回收；只与同阶且空闲的合法伙伴合并；非对齐、非 2 的幂初始区间分解为合法块；测试后恢复真实描述符视图与初始空闲区。测试尚未覆盖所有非法输入导致的 panic 分支或并发。
 
 ### 分支任务：GDB 调试页表查询过程
 
@@ -247,6 +268,17 @@ QEMU 4.1.1 实际输出四组 PASS、[Buddy] ALL TESTS PASSED、check_alloc_page
 #### 模块功能描述
 
 本模块在宿主/客体两层调试器下动态观察一次内核取指如何从 Sv39 虚拟地址翻译为物理地址、如何被填入 QEMU 软件 TLB，并对照 QEMU 4.1.1 源码确认调用链。观测对象是 ucore lab2 内核镜像，不改内核和 Makefile；宿主 GDB 调试 QEMU 本体，客体 GDB 调试 RISC-V 内核，两端各用一个独立调试器会话。
+
+本任务涉及的主要脚本（code/tools/gdb/ 共 10 个文件，完整清单见该目录 README.md）：
+
+```text
+code/tools/gdb/guest.gdb         单客体脚本：kern_entry 起单步打开 satp，观察 kern_init、PTE[511]、memset 参数
+code/tools/gdb/guest-reset.gdb   复位流程客体侧：连接复位向量、等待宿主就绪后 detach
+code/tools/gdb/guest-detach.gdb  detach 流程客体侧：先驱动内核到 kern_entry，再等待宿主交接
+code/tools/gdb/host.gdb          宿主侧：QEMU 内部断点、命中条件与日志格式
+code/tools/gdb/run-dual-reset.sh 首选双 GDB 流程：QEMU 从复位起跑，客体先连、宿主 attach 后客体 detach
+code/tools/gdb/run-guest-gdb.sh  单客体运行：guest.gdb 驱动内核，QEMU -d mmu 生成 mmu.log
+```
 
 首轮环境中，已在独立 qemu-4.1.1-debug-build 目录使用 --enable-debug、--target-list=riscv64-softmmu、--disable-werror、--disable-docs 和 Python 3 配置并编译成功。configure 显示 CFLAGS=-g、TCG debug enabled yes；file 显示 x86-64、with debug_info、not stripped。保留原安装版，无需覆盖安装。宿主和客体分别使用一个 gdb-multiarch 实例；宿主根据 QEMU ELF 自动采用 x86-64，客体显式设置 riscv:rv64，不能把两个调试目标混淆。
 
@@ -306,6 +338,33 @@ Bare 模式在适用特权和访问条件下不进行 Sv39 多级页表翻译，
 12. **SIGPIPE 干扰**：QEMU 向已关闭的终端写数据时，宿主 GDB 默认会停在 SIGPIPE 上，打乱继续/单步时序。处理：宿主脚本设置 `handle SIGPIPE nostop noprint pass`。结果：调试会话不再被该信号打断。
 13. **日志可读性**：同一次运行中同一页可能被多次填充，重复打印会淹没有效记录。处理：脚本用一次性标志（如 `$bare_seen`、`$code_fill_logged`、`$data_fill_logged`）只记录首次命中，并把宿主、客体与串口输出分别写入日志文件。结果：每次运行的证据可按文件定位，见 report/logs/gdb-b/。
 
+#### 与大模型协作解决的问题
+
+本小节记录调试与交付复核过程中与 AI 助手协作解决的真实问题：首轮调试使用组长的 Codex 会话，交付复核阶段使用本地 AI 助手（DeepSeek Harness）。模型输出全部用实际日志核对后才写入报告。
+
+**案例 1（交付复核）：GDB 脚本跨构建迁移**
+
+- 情景：旧脚本按另一套构建硬编码了 `0xffffffffc0206ff8`（PTE[511] 的 VA）与 `0xffffffffc0207018/0xffffffffc0207000`（edata 数据页）；当前 lab2 构建实测 PTE[511] 在 `0xffffffffc0205ff8`、edata=`0xffffffffc0206018`，直接运行会观测不到目标地址。
+- 思路：把当前构建布局（end/edata/boot_page_table_sv39/free begin 与串口输出）、旧脚本清单和期望日志字段一起交给模型，要求只改地址、日志目录与端口，不改变断点条件与调试逻辑，并说明每处改动的依据。
+- 交互过程：模型按布局给出地址替换表（含 PTE 的 +0xff8 偏移与数据页换算），并保留 run-dual-reset.sh 的同步标志逻辑；我们逐项对照 report/logs/gdb-b/guest-gdb.log、host-gdb.log 验证 satp、PTE、VA→PA 与 TLB 填充均命中后才定稿，README 的“脚本按当前构建改了什么”一节记录改动清单。
+- 结论：迁移后的脚本在第二环境跑出与首轮一致的观测值，迁移正确；未改动内核与 Makefile。
+
+**案例 2（交付复核）：双 GDB 无法 attach / 连接失败**
+
+- 情景：复核阶段第一次运行脚本时，宿主 GDB attach 被 Yama 拒绝（报错提示 `Could not attach to process ... ptrace_scope`）；另一次以 root 用非登录 shell 运行时 PATH 不含 `~/riscv/bin`，脚本找不到 riscv64-unknown-elf-gdb。
+- 思路：把两条报错原文与 WSL 2 环境（每次实例重启会重置 kernel.yama.ptrace_scope）交给模型，要求给出可验证的根因与最小修正，而不是反复重试。
+- 交互过程：模型给出“在同一个 WSL 会话内 `sudo sysctl -w kernel.yama.ptrace_scope=0`”与“改用登录 shell/绝对路径”的修正；按其重跑后宿主成功 attach、客体正常连接，日志与 README 均记录成功路径。失败运行的日志已被成功运行覆盖、未单独归档，报告不把失败记录说成有日志留存。
+- 结论：问题定位为权限与 PATH 配置，不是脚本逻辑错误；修正后双 GDB 稳定运行。
+
+**案例 3（首轮调试）：helper 输出粒度与断点条件**
+
+- 情景：曾预期 `get_physical_address` 直接输出完整字节 PA，实测只给 4 KiB 页基址 `0x80200000`；同时长地址区间条件断点被终端换行截断，GDB 报语法错误，断点未生效。
+- 思路：把 GDB 输出（physical、VA&0xfff、报错原文）与 QEMU 源码行号交给模型，要求区分“页基址/字节地址”并给出可执行的断点条件改法。
+- 交互过程：首轮把 GDB 输出（physical、VA&0xfff、报错原文）与 QEMU 源码位置交给 AI 助手核对，得到加页内偏移与页号比较的改法；复核阶段用 report/logs/gdb-host.log 第 62-67 行、第 11/27 行再次核对后才写入报告。
+- 结论：两处修正均经日志验证；报告按实际观测表述，不把源码推导写成动态结果。
+
+方法论：把版本、命令、日志与期望值作为输入，要求模型给出能在源码/日志中核对的位置与参数；不采纳未实测的结论，模型输出只作假设，最终以日志为准。
+
 #### 双 GDB 复现（刘梓涵环境）
 
 本节是把已交付的 code/tools/gdb/ 脚本在第二台 WSL 2 机器上重新运行得到的独立复现，不是另一套实现；用途是交叉核对首轮观测与当前 lab2 构建布局，数值以日志为准。
@@ -353,7 +412,16 @@ tlb_set_page 的调用参数：vaddr_page=0xffffffffc0200000、paddr=0x80200000 
 
 日志位置：report/logs/gdb-b/ 下，run-dual-reset.sh 产出 guest-reset.log、host-gdb.log、host-stdout.log、serial-reset.log、qemu-reset.log；run-guest-gdb.sh 产出 guest-gdb.log、mmu.log、serial.log、qemu.log；environment.log 为环境版本记录。serial.log 在客体 detach 后 QEMU 被脚本立即终止，末尾截断属真实行为，完整启动输出看 serial-reset.log。复现构建、Buddy 与 grade 的日志在 report/logs/repro-b/。本轮复现以完整日志作为证据，未新增截图；报告中 GDB 截图均来自首轮环境（report/images/），其数值与本节日志一致。
 
+#### 观察软件模拟硬件的收获
+
+1. **直映射偏移换算**：lab2 的内核符号是虚拟地址，QEMU 记录的是物理地址，两者相差直接映射偏移 `0xffffffff40000000`；若用物理地址值直接反汇编，会得到错误结果，需要先换算成虚拟地址。
+2. **helper 返回页基址，不等于完整字节 PA**：`get_physical_address` 写出的是 4 KiB 页基址（本次为 `0x80200000`），完整字节地址还要加 `VA & 0xfff`（`0x802000d6`）；数据页同理（`0x80206018 = 0x80206000 + 0x18`）。判读日志时必须区分这两层。
+3. **大页叶项与软件 TLB 粒度并存**：根页表 PTE[511] 是 1 GiB 大页叶项，但 QEMU 架构回调按 4 KiB 粒度调用 `tlb_set_page`，因此同一次翻译会同时出现“1 GiB 映射”和“4 KiB 填充”两种粒度，二者并不矛盾。
+4. **QEMU 软件 TLB 不是真实 CPU TLB**：它还保存宿主访问指针、权限（prot=7）与 RAM/MMIO 判断所需的信息；真实 CPU 的硬件 TLB 只缓存地址翻译。观察模拟器时要把“客体地址翻译”与“模拟器内部访存缓存”分开。
+
 ### Challenge：SLUB
+
+**负责人：** 全体成员（选做任务，未实现，不声称完成或加分）。
 
 未实现，不声称完成或已获加分。其核心是在页级管理器上建立对象缓存和页内空闲对象管理，从而支持小于一页的不同大小对象；本实验的已实现部分仍为页级分配。
 
@@ -371,7 +439,7 @@ tlb_set_page 的调用参数：vaddr_page=0xffffffffc0200000、paddr=0x80200000 
 | 修订后的 validate.sh | 已在 Ubuntu 复核通过 | 非交互启动、30 秒超时和默认 Best-Fit 恢复 |
 | 双 GDB 分支 | 页表查询、地址转换、TLB 填充、客体交叉核对与取指 TLB 命中均已实测 | 页表层级、页基址/字节地址及缓存路径 |
 | 独立复现（2410683 环境） | 另一台 WSL 2 机器重新构建后 Best-Fit 布局与报告一致（end=0xffffffffc0206078、free begin=0x80347000、satp PA=0x80205000）；Buddy 配置四组 PASS + check_alloc_page() succeeded；显式指定 QEMU 4.1.1 重跑 make grade 20/20（PATH 默认 7.0.0 同一镜像为 0/20）；双 GDB 日志见 report/logs/gdb-b/ | 日志见 report/logs/repro-b/ 与 report/logs/gdb-b/；同一交付在另一环境的构建与运行可复现，不替代首轮证据 |
-| 截图归档 | 四张基础截图已复制并检查 | 环境、Best-Fit、课程评分和 Buddy |
+| 截图归档 | 截图已归档并检查：4 张基础截图 + 6 张 GDB 截图，共 10 张；grade 截图为 tools/validate.sh grade（内部调用 make grade） | 环境、Best-Fit、课程评分、Buddy 与 GDB 观测 |
 
 独立复现（2410683 环境）：在另一台 WSL 2 机器上重新构建同一份交付代码后，Best-Fit 启动输出的 entry/edata/end、free begin 与 satp VA/PA 与报告一致（etext 因编译器版本不同差 14 字节，原因见分支任务一节）；`make PMM=buddy` 的 Buddy 配置四组 PASS 且 check_alloc_page() succeeded；显式指定 QEMU 4.1.1 重跑 make grade 为 20/20，而同一镜像直接用 PATH 默认的 QEMU 7.0.0 跑 grade 为 0/20，说明必须显式指定 4.1.1。构建、启动、Buddy 与两份 grade 日志见 report/logs/repro-b/，双 GDB 日志见 report/logs/gdb-b/。这是同一交付在另一台机器上的重跑，不构成第二套实现，也不改变首轮结论。构建命令为 `make clean && make`（默认 Best-Fit）与 `make clean && make PMM=buddy`（Buddy 复现）；grade 对照显式指定 `QEMU=~/qemu-4.1.1/riscv64-softmmu/qemu-system-riscv64`（详见 code/tools/gdb/README.md）。
 
@@ -436,7 +504,7 @@ TLB 命中查找：
 
 ![取指标签匹配并跳过未命中分支](./images/lab2_gdb_host_lookup.png)
 
-原生检查日志见 logs/host-algorithms.log。Ubuntu 环境、构建、直接启动、课程评分及宿主 GDB 日志已从操作者目录汇总到 logs/。其中 buddy.log 保留初版脚本无固件输出的失败记录，成功的 Buddy 运行应查看 buddy-direct.log；不将失败日志冒充成功结果。
+原生检查日志见 report/logs/host-algorithms.log。Ubuntu 环境、构建、直接启动、课程评分及宿主 GDB 日志已从操作者目录汇总到 report/logs/。其中 buddy.log 保留初版脚本无固件输出的失败记录，成功的 Buddy 运行应查看 buddy-direct.log；不将失败日志冒充成功结果。report/logs/ 为测试与调试证据附录，不属于课程模板要求的报告目录。
 
 初版脚本在嵌套管道中运行 QEMU 时未捕获固件输出，直接启动同一镜像则成功。修订为直接调用 QEMU、stdin=/dev/null、30 秒超时并移除外层函数管道后，操作者再次干净构建并运行 Best-Fit，实际出现固件与内核输出、check_alloc_page 成功和默认管理器名称，脚本正常返回。现象支持修订有效，但未单独隔离每项改变的因果关系，不断言已严格证明底层根因。超时结束常驻内核本身不是失败，通过条件仍是实际检查标志且无 panic。
 
@@ -451,6 +519,17 @@ TLB 命中查找：
 3. First-Fit/Best-Fit 面临外部碎片；Buddy 用对齐的幂次块简化拆分合并，但向上取整产生内部碎片。统计总空闲页不等于保证任何连续请求成功。
 4. 固件保留、内核镜像和元数据占用体现了资源所有权约束；对齐、边界和不变量与核心算法同样重要。
 5. 本实验未覆盖完整多进程地址空间、缺页异常和页面置换、用户态隔离、NUMA/并发分配、完整对象缓存等机制，不能把最小实现等同于生产级内存管理。
+
+**知识点与 OS 原理对应关系：**
+
+| 知识点 | 对应 OS 原理 | 含义、关系与差异 |
+|--------|--------------|------------------|
+| Page 描述符 | 物理内存管理 / 页框管理 | Page 数组描述每个物理页框的状态（保留、空闲、引用计数）；它是管理元数据，本身占用内存，不能当资源再分配 |
+| First-Fit / Best-Fit | 连续内存分配与外部碎片 | 都按地址维护空闲块链表；First-Fit 取首个可容纳块，Best-Fit 取最小可容纳块；选择策略影响碎片形态，但不保证总空闲够就一定能满足连续请求 |
+| Buddy System | 伙伴系统与内部碎片 | 空闲块按 2 的幂对齐，伙伴由页号 XOR 定位；拆分/合并快、外部碎片受控，但向上取整产生内部碎片；与 First-Fit/Best-Fit 的精确页数语义不同 |
+| Sv39 / PTE / satp | 多级页表与地址翻译 | satp 给出页表基址与模式，PTE 逐级翻译虚拟地址；本实验的启动页表用 1 GiB 大页覆盖直接映射区 |
+| TLB | 快表 / 地址翻译缓存 | 缓存近期翻译结果；真实 CPU 用硬件 TLB，QEMU 用软件 TLB 并附带宿主访问信息，两者结构与用途不同 |
+| page_init / DTB / 保留区 | 启动内存探测与资源所有权 | 从固件设备树获取内存范围，扣除固件、内核镜像与元数据后登记空闲页；体现“哪些内存归谁使用”的所有权约束 |
 
 ### AI 协作开发的经验
 

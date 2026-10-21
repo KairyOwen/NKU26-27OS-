@@ -2,9 +2,11 @@
 
 ## 来源说明
 
-本组本轮通过 Codex 桌面应用辅助实现与检查。下面区分用户实际请求、实现采用的任务规格和测试任务规格。实现与测试在同一会话中完成，没有另外调用独立 AI，也没有虚构组员与其他模型的对话。分工中的姓名表示模块责任安排，各人仍需复核本人负责的实现与解释。
+本组本轮通过 Codex 桌面应用辅助实现与检查；交付复核/复现阶段另使用本地 AI 编程助手（DeepSeek Harness）辅助 GDB 脚本迁移与证据核对，未用于生成内核实现代码。下面区分用户实际请求、实现采用的任务规格和测试任务规格。实现阶段在组长会话中完成，没有虚构组员与其他模型的对话。分工中的姓名表示模块责任安排，各人仍需复核本人负责的实现与解释。
 
-本轮未记录模型具体型号，不从工具名称推断。GDB 调试和修复依据同一会话的真实操作整理。
+实现阶段未记录 Codex 的底层模型具体型号，不从工具名称推断；复核/复现阶段使用 DeepSeek Harness（模型记录为 DeepSeek-V4.1-Flash）。GDB 调试和修复依据真实操作整理。
+
+P7 为交付复核阶段任务规格，由 2410683 在本地 WSL 环境执行，脚本迁移与证据核对该阶段使用 DeepSeek Harness 辅助，未用于内核实现代码生成。
 
 ## 用户实际请求
 
@@ -24,6 +26,8 @@
 验证它能放入 RAM。所有描述符先保留，排除固件、内核和描述符数组；
 空闲起点向上取整，只有存在完整空闲页时才调用 init_memmap。
 不能改测试，也不能把已开启 Sv39 的初始化写成首次开启分页。
+输出：编译通过的 page_init 实现、启动日志与检查结果。
+正确判据：编译通过，课程 page init 检查为 OK，QEMU 启动输出默认管理器名称且 check_alloc_page() 成功。
 ```
 
 ## P2：Best-Fit 实现任务规格
@@ -37,6 +41,8 @@
 释放后按地址插入，合并前邻、后邻或两侧；维护 ref/property/flags。
 补齐全部回调及 best_fit_pmm_manager，默认管理器切换为 Best-Fit。
 解释其与 First-Fit 的差别、外部碎片和进一步改进空间。
+输出：best_fit_pmm.c 完整实现、best_fit_pmm_manager 与默认接入。
+正确判据：框架 basic_check()/best_fit_check() 通过，make grade 两项 OK 且 Total Score 20/20。
 ```
 
 ## P3：Buddy 实现与接入任务规格
@@ -79,13 +85,29 @@ Best-Fit/Buddy 源文件，不能重写算法替代测试。保留原始双链�
 
 ```text
 使用独立 --enable-debug 的 QEMU 4.1.1 构建，宿主调试器附加 QEMU，
-客体调试器连接 localhost:1234。依据真实源码定位 riscv_cpu_tlb_fill、
+客体调试器连接 QEMU gdbstub（默认端口 1234；本机 1234 被 Windows 微信占用，
+脚本统一改用 43210）。依据真实源码定位 riscv_cpu_tlb_fill、
 get_physical_address、tlb_set_page 以及 TLB 查找路径；用条件断点限制
 内核取指页。逐步读取 satp、priv、根页表基址、idx、pte_addr、PTE 和
 返回物理地址；确认根层大页叶子，不强行假设三级查询。区分 helper
 返回的物理页基址与加上页内偏移后的字节 PA；记录 tlb_set_page 参数。
 宿主暂停时客体 GDB 等待是正常现象。每个关键节点明确截图时机，
 只报告实际观察，不把源码推导写成动态命中或回填完成的证据。
+```
+
+## P7：GDB 脚本迁移与独立复现任务规格
+
+```text
+输入：既有双 GDB 脚本（guest*.gdb、host.gdb、run-*.sh）、当前 lab2 构建布局
+      （end/edata/boot_page_table_sv39/free begin 与串口输出）、预期观测值
+      （satp、PTE[511]、取指/数据 VA→PA、tlb_set_page 参数）。
+任务：把脚本中的地址、日志目录、端口适配到当前构建；串行运行双 GDB 与
+      单客体流程，逐项核对 guest/host 日志；失败运行如实记录。
+约束：同一时间只跑一个 QEMU 实例；宿主 attach 前在同一 WSL 会话把
+      kernel.yama.ptrace_scope 置 0；1234 被 Windows 微信占用，统一用 43210；
+      不改内核与 Makefile，不修改课程评分/测试文件。
+判据：guest-gdb.log 与 host-gdb.log 能逐项命中 satp、PTE、VA→PA 与 TLB fill；
+      数值与预期一致才写入报告，不一致以日志为准并说明差异。
 ```
 
 ## 实际迭代记录
@@ -96,8 +118,9 @@ get_physical_address、tlb_set_page 以及 TLB 查找路径；用条件断点限
 4. 初版验证脚本运行时没有捕获固件输出；直接运行同一镜像后 Best-Fit 正常启动，课程 grade 得到 20/20。Buddy 的脚本启动也出现同类现象。修订脚本移除外层嵌套管道、直接调用 QEMU，并将 stdin 设为 /dev/null，避免交互式终端对管道作业的影响；修订版仍需运行复核，不将推测原因当作已经确定的根因。
 5. 用户直接启动 Buddy 镜像，实测四组 PASS、ALL TESTS PASSED、check_alloc_page() succeeded!。四张基础截图已归档核对；双 GDB 分支任务进行中。
 6. QEMU 调试版构建成功并附加宿主 GDB。长条件断点因换行截断，改为右移页号比较；删除重复断点。实测 Sv39、根层叶子 PTE、物理页基址及完整字节 PA；修正此前对 helper 输出粒度的错误预期。已进入 tlb_set_page 并记录权限与 4096 字节粒度参数，后续继续客体核对。
-7. 客体核对 PC、satp、根表 VA 和第 511 项，与宿主一致。随后在宿主断住 get_page_addr_code，由客体 si 触发取指查找；读取 index=0 和相同的页标签，next 跳过未命中处理进入 1039 行，确认一次实际 TLB 命中。未实际执行 Bare 模式切换，对 Bare 的说明依据版本源码，不冒充动态对比。
+7. 客体核对 PC、satp、根表 VA 和第 511 项，与宿主一致。随后在宿主断住 get_page_addr_code，由客体 si 触发取指查找；读取 index=0 和相同的页标签，next 跳过未命中处理进入 1039 行，确认一次实际 TLB 命中。首轮未动态观察 Bare 首取指；第二环境复位流程实测到 Bare 首取指（tlb_fill→Bare 分支 *physical=addr），对 Bare 的其余说明依据版本源码，不冒充动态对比。
 8. 退出调试后同步修订脚本，用户在 Ubuntu 再次干净构建默认 Best-Fit，固件输出、内核检查及脚本末尾核对均成功。Ubuntu 原始日志已复制归档。初版 buddy.log 是无输出失败记录，成功依据 buddy-direct.log 和截图，明确区分。
+9. 2026-10-22 在第二环境（WSL 2 / Ubuntu 26.04，riscv64-unknown-elf-gcc 16.1.0、QEMU 4.1.1 调试版）用 code/tools/gdb/ 脚本复现：按当前构建布局迁移地址、日志目录与端口（1234 被 Windows 微信占用，改用 43210），串行运行 run-dual-reset.sh 与 run-guest-gdb.sh；处理 ptrace_scope 与客户端 PATH 问题后，guest/host 日志逐项命中 satp、PTE、VA→PA 与 TLB 填充。复现构建/Buddy/grade 日志见 report/logs/repro-b/，GDB 日志见 report/logs/gdb-b/。
 
 ## Challenge 状态
 
