@@ -1,0 +1,7 @@
+The target architecture is set to "riscv:rv64".
+warning: No executable has been specified and target does not support
+determining executable automatically.  Try using the "file" command.
+0x0000000000001000 in ?? ()
+=== GUEST: connected at reset, pc=0x1000 ===
+=== GUEST: detaching, QEMU starts from reset under host gdb ===
+[Inferior 1 (process 1) detached]

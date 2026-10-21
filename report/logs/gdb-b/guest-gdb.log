@@ -1,0 +1,78 @@
+Working directory /mnt/d/document/OS/NKU26-27OS-/code.
+The target architecture is set to "riscv:rv64".
+0x0000000000001000 in ?? ()
+Breakpoint 1 at 0x80200000
+
+Breakpoint 1, 0x0000000080200000 in ?? ()
+
+=== GUEST: kern_entry reached (Bare mode, satp not written yet) ===
+pc             0x80200000	0x80200000
+sp             0x8001bd80	0x8001bd80
+satp           0x0	0
+=> 0x80200000:	auipc	t0,0x6
+   0x80200004:	mv	t0,t0
+   0x80200008:	sd	a0,0(t0)
+   0x8020000c:	auipc	t0,0x6
+   0x80200010:	addi	t0,t0,-4
+   0x80200014:	sd	a1,0(t0)
+0x0000000080200004 in ?? ()
+0x0000000080200008 in ?? ()
+0x000000008020000c in ?? ()
+0x0000000080200010 in ?? ()
+0x0000000080200014 in ?? ()
+0x0000000080200018 in ?? ()
+0x000000008020001c in ?? ()
+0x0000000080200020 in ?? ()
+0x0000000080200022 in ?? ()
+0x0000000080200026 in ?? ()
+0x000000008020002a in ?? ()
+0x000000008020002e in ?? ()
+0x0000000080200030 in ?? ()
+0x0000000080200034 in ?? ()
+0x0000000080200038 in ?? ()
+
+=== GUEST: satp written after 15 stepi ===
+pc             0x80200038	0x80200038
+satp           0x8000000000080205	-9223372036854251003
+   0xffffffffc0200038 <kern_entry+56>:	sfence.vma
+   0xffffffffc020003c <kern_entry+60>:	lui	sp,0xc0205
+Breakpoint 2 at 0xffffffffc02000d6: file kern/init/init.c, line 30.
+
+Breakpoint 2, kern_init () at kern/init/init.c:30
+30	    memset(edata, 0, end - edata);
+
+=== GUEST: kern_init reached (Sv39 enabled) ===
+pc             0xffffffffc02000d6	0xffffffffc02000d6 <kern_init>
+sp             0xffffffffc0205000	0xffffffffc0205000
+satp           0x8000000000080205	-9223372036854251003
+boot_page_table_sv39[511] at VA 0xffffffffc0205ff8:
+0xffffffffc0205ff8:	0x00000000200000cf
+satp=0x8000000000080205  PPN=0x80205
+Breakpoint 3 at 0xffffffffc02016ac: file libs/string.c, line 276.
+
+Breakpoint 3, memset (s=0xffffffffc0206018 <free_area>, c=c@entry=0 '\000', 
+    n=95) at libs/string.c:276
+276	    while (n -- > 0) {
+
+=== GUEST: memset entry (about to store to edata) ===
+a0             0xffffffffc0206018	-1071620072
+a1             0x0	0
+a2             0x60	96
+pc             0xffffffffc02016ac	0xffffffffc02016ac <memset>
+=> 0xffffffffc02016ac <memset>:	beqz	a2,0xffffffffc02016bc <memset+16>
+   0xffffffffc02016ae <memset+2>:	add	a2,a2,a0
+   0xffffffffc02016b0 <memset+4>:	mv	a5,a0
+   0xffffffffc02016b2 <memset+6>:	addi	a5,a5,1
+   0xffffffffc02016b4 <memset+8>:	sb	a1,-1(a5)
+   0xffffffffc02016b8 <memset+12>:	
+    bne	a2,a5,0xffffffffc02016b2 <memset+6>
+Breakpoint 4 at 0xffffffffc0200fb8: file kern/mm/pmm.c, line 41.
+
+Breakpoint 4, pmm_init () at kern/mm/pmm.c:125
+125	    init_pmm_manager();
+
+=== GUEST: pmm_init reached; earlier accesses used Sv39 ===
+pc             0xffffffffc0200fb8	0xffffffffc0200fb8 <pmm_init>
+sp             0xffffffffc0204ff0	0xffffffffc0204ff0
+satp           0x8000000000080205	-9223372036854251003
+[Inferior 1 (process 1) detached]

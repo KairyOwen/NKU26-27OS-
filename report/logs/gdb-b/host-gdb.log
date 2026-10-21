@@ -1,0 +1,53 @@
+Breakpoint 1 at 0x608549577a8e: file /home/hanmiao33/qemu-4.1.1/accel/tcg/cputlb.c, line 871.
+Breakpoint 2 at 0x6085496325eb: file /home/hanmiao33/qemu-4.1.1/target/riscv/cpu_helper.c, line 438.
+Breakpoint 3 at 0x608549631bdd: file /home/hanmiao33/qemu-4.1.1/target/riscv/cpu_helper.c, line 197.
+Breakpoint 4 at 0x608549577a8e: file /home/hanmiao33/qemu-4.1.1/accel/tcg/cputlb.c, line 871.
+Breakpoint 5 at 0x6085496325eb: file /home/hanmiao33/qemu-4.1.1/target/riscv/cpu_helper.c, line 438.
+Breakpoint 6 at 0x60854963199d: file /home/hanmiao33/qemu-4.1.1/target/riscv/cpu_helper.c, line 158.
+Breakpoint 7 at 0x608549631eea: file /home/hanmiao33/qemu-4.1.1/target/riscv/cpu_helper.c, line 256.
+Breakpoint 8 at 0x608549632161: file /home/hanmiao33/qemu-4.1.1/target/riscv/cpu_helper.c, line 337.
+Breakpoint 9 at 0x60854957798f: file /home/hanmiao33/qemu-4.1.1/accel/tcg/cputlb.c, line 836.
+Breakpoint 10 at 0x608549577a8e: file /home/hanmiao33/qemu-4.1.1/accel/tcg/cputlb.c, line 871.
+Breakpoint 11 at 0x60854963199d: file /home/hanmiao33/qemu-4.1.1/target/riscv/cpu_helper.c, line 158.
+Breakpoint 12 at 0x608549631eea: file /home/hanmiao33/qemu-4.1.1/target/riscv/cpu_helper.c, line 256.
+Breakpoint 13 at 0x608549632161: file /home/hanmiao33/qemu-4.1.1/target/riscv/cpu_helper.c, line 337.
+Breakpoint 14 at 0x60854957798f: file /home/hanmiao33/qemu-4.1.1/accel/tcg/cputlb.c, line 836.
+[Switching to Thread 0x767d09fff6c0 (LWP 1037)]
+
+[HOST] TLB MISS (Bare fetch): tlb_fill(addr=0x80200000, size=0, access_type=2, mmu_idx=1)
+#0  tlb_fill (cpu=0x608573d8a740, addr=2149580800, size=0, access_type=MMU_INST_FETCH, mmu_idx=1, retaddr=0) at /home/hanmiao33/qemu-4.1.1/accel/tcg/cputlb.c:871
+#1  0x000060854957819f in get_page_addr_code (env=0x608573d93150, addr=2149580800) at /home/hanmiao33/qemu-4.1.1/accel/tcg/cputlb.c:1032
+#2  0x000060854959cc40 in tb_htable_lookup (cpu=0x608573d8a740, pc=2149580800, cs_base=0, flags=24577, cf_mask=4278714368) at /home/hanmiao33/qemu-4.1.1/accel/tcg/cpu-exec.c:339
+[HOST] riscv_cpu_tlb_fill(address=0x80200000, access_type=2, mmu_idx=1)
+       satp.MODE is still Bare here; the next branch returns PA=VA
+[HOST] Bare branch: satp.MODE=0 -> *physical = addr = 0x80200000 (no page walk)
+
+[HOST] TLB MISS (Sv39 fetch): tlb_fill(addr=0xffffffffc02000d6, size=0, access_type=2, mmu_idx=1)
+#0  tlb_fill (cpu=0x608573d8a740, addr=18446744072637907158, size=0, access_type=MMU_INST_FETCH, mmu_idx=1, retaddr=0) at /home/hanmiao33/qemu-4.1.1/accel/tcg/cputlb.c:871
+#1  0x000060854957819f in get_page_addr_code (env=0x608573d93150, addr=18446744072637907158) at /home/hanmiao33/qemu-4.1.1/accel/tcg/cputlb.c:1032
+#2  0x000060854959cc40 in tb_htable_lookup (cpu=0x608573d8a740, pc=18446744072637907158, cs_base=0, flags=24577, cf_mask=4278714368) at /home/hanmiao33/qemu-4.1.1/accel/tcg/cpu-exec.c:339
+#3  0x0000608549595c8a in tb_lookup__cpu_state (cpu=0x608573d8a740, pc=0x767d09ffe3b0, cs_base=0x767d09ffe3a8, flags=0x767d09ffe3a4, cf_mask=4278714368) at /home/hanmiao33/qemu-4.1.1/include/exec/tb-lookup.h:43
+[HOST] riscv_cpu_tlb_fill(address=0xffffffffc02000d6, access_type=2, mmu_idx=1)
+[HOST] Sv39 walk: get_physical_address(addr=0xffffffffc02000d6, access_type=2)
+       satp=0x8000000000080205 priv=1
+[HOST] level i=0 idx=VPN0=511 pte_addr=0x80205ff8 pte=0x200000cf (PTE>>10=0x80000) ptshift=18
+[HOST] leaf: vpn=0xffffffffc0200 ppn=0x80000 ptshift=18 physical=0x80200000
+[HOST] TLB FILL: vaddr_page=0xffffffffc0200000 paddr=0x80200000 index=0
+       tn.addr_read=0xffffffffc0200000 tn.addr_write=0xffffffffc0200400 tn.addr_code=0xffffffffc0200000 tn.addend=0x767d3be00000
+
+[HOST] TLB MISS (data store): tlb_fill(addr=0xffffffffc0206018, size=1, access_type=1, mmu_idx=1)
+#0  tlb_fill (cpu=0x608573d8a740, addr=18446744072637931544, size=1, access_type=MMU_DATA_STORE, mmu_idx=1, retaddr=130279411094103) at /home/hanmiao33/qemu-4.1.1/accel/tcg/cputlb.c:871
+#1  0x000060854957bcaf in store_helper (env=0x608573d93150, addr=18446744072637931544, val=0, oi=1, retaddr=130279411094103, size=1, big_endian=false) at /home/hanmiao33/qemu-4.1.1/accel/tcg/cputlb.c:1522
+#2  helper_ret_stb_mmu (env=0x608573d93150, addr=18446744072637931544, val=0 '\000', oi=1, retaddr=130279411094103) at /home/hanmiao33/qemu-4.1.1/accel/tcg/cputlb.c:1642
+#3  0x0000767d0a051257 in code_gen_buffer ()
+[HOST] Sv39 walk (data): addr=0xffffffffc0206018 access_type=1 satp=0x8000000000080205
+[HOST] level i=0 idx=VPN0=511 pte_addr=0x80205ff8 pte=0x200000cf (PTE>>10=0x80000) ptshift=18
+[HOST] leaf: vpn=0xffffffffc0206 ppn=0x80000 ptshift=18 physical=0x80206000
+[HOST] TLB FILL: vaddr_page=0xffffffffc0206000 paddr=0x80206000 index=6
+       tn.addr_read=0xffffffffc0206000 tn.addr_write=0xffffffffc0206000 tn.addr_code=0xffffffffc0206000 tn.addend=0x767d3be00000
+
+Thread 1 "qemu-system-ris" received signal SIGTERM, Terminated.
+[Switching to Thread 0x767d1127ff40 (LWP 1034)]
+__syscall_cancel_arch () at ../sysdeps/unix/sysv/linux/x86_64/syscall_cancel.S:56
+56	in ../sysdeps/unix/sysv/linux/x86_64/syscall_cancel.S
+[Inferior 1 (process 1034) detached]
