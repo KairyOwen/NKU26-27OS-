@@ -10,6 +10,7 @@ static free_area_t free_area;
 
 static void best_fit_check(void);
 
+// 初始化 Best-Fit 空闲链表与页数计数
 static void best_fit_init(void) {
     list_init(&free_list);
     nr_free = 0;
@@ -59,6 +60,7 @@ static void best_fit_init_memmap(struct Page *base, size_t n) {
     insert_free_block(base);
 }
 
+// 遍历空闲链表，选取最小可满足请求的块；精确匹配时直接返回
 static struct Page *best_fit_alloc_pages(size_t n) {
     assert(n > 0);
     if (n > nr_free) {

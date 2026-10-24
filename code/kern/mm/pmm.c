@@ -38,6 +38,7 @@ static void init_pmm_manager(void) {
 #ifdef PMM_USE_BUDDY
     pmm_manager = &buddy_pmm_manager;
 #else
+    // 默认选用 Best-Fit 管理器
     pmm_manager = &best_fit_pmm_manager;
 #endif
     cprintf("memory management: %s\n", pmm_manager->name);
