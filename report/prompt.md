@@ -1,6 +1,6 @@
-# Lab3 提示词与实现约束：A 阶段
+# Lab3 提示词与实现约束：A/B 阶段
 
-记录范围：张哲宇负责的基础迁移、同步机制分析和阶段交接。B/C 应在接力开发后补充各自实际使用的提示词。
+记录范围：A 阶段（张哲宇）的基础迁移与同步分析；B 阶段（刘梓涵）的 Trap 入口与上下文恢复。C 后续补充中断异常处理与最终集成。
 
 ## 1. 实际需求记录
 
@@ -55,4 +55,50 @@
 
 ## 5. 后续记录约定
 
-B 补充 Trap 布局和恢复顺序相关的实际 prompt，C 补充中断异常处理、测试及最终迭代。可以把长对话归纳为关键问题和约束，但应标为整理记录，保留真实协作范围，不编造个人提问、模型版本或失败经历。
+B 已补充本文件第 6 节；C 补充中断异常处理、测试及最终迭代。可以把长对话归纳为关键问题和约束，但应标为整理记录，保留真实协作范围，不编造个人提问、模型版本或失败经历。
+
+## 6. B 阶段：Trap 入口与上下文恢复
+
+### 6.1 实际需求记录
+
+本次用户提供 Lab3 三人分工文档，并指定 B（刘梓涵，2410683）负责模块一：在 A 已迁移内存管理的基础上，补齐 `kern/trap/trapentry.S` 中的 `RESTORE_ALL` 与 `__alltraps` 对 C 处理函数的调用。以下规格依据分工文档、`SAVE_ALL` 与 `struct trapframe` 整理，不是逐字聊天记录。
+
+### 6.2 最终任务规格
+
+```text
+输入：Lab3 代码包中的 kern/trap/trapentry.S、kern/trap/trap.h；
+      SAVE_ALL 已实现，struct trapframe 已定义；A 阶段已完成内存管理迁移。
+任务：补齐 RESTORE_ALL 与 __alltraps 中的调用逻辑；保留 lab3 function1 标记，
+      将 YOUR CODE 换成 2410683。
+要求：
+1. 保持 SAVE_ALL、struct trapframe、__alltraps/__trapret 边界不变。
+2. 推导 36 个槽位：x0..x31 在 0..31，sstatus/sepc/badvaddr/scause 在 32..35，
+   共 36*8=288 字节；288 为 16 的倍数，满足 ABI 栈对齐。
+3. RESTORE_ALL：先用 s0/s1 从帧中读 sstatus/sepc 并 csrw；再恢复 x1、x3..x31；
+   最后恢复 x2/sp，避免提前改变寻址基址。
+4. 不恢复 scause/stval 等诊断 CSR；说明 sret 依据 sstatus.SPP/SPIE 与 sepc 返回。
+5. __alltraps：mv a0, sp；jal trap；返回后 sp 不变并落入 __trapret。
+6. 不修改 trap.c 的分发逻辑和 C 的处理函数；不修改 A 的内存管理代码。
+判据：trapentry.S 汇编通过；槽位偏移与结构体一致；临时桩下 Test 1 的寄存器
+      上下文检查通过；不把临时桩结果冒充最终 make grade。
+```
+
+### 6.3 关键决策与问题
+
+- **CSR 恢复需要临时寄存器**：`csrw` 的源必须是通用寄存器，因此先把 `sstatus`/`sepc` 读入 s0/s1，再写 CSR；s0/s1 的原始值随后从帧槽位 8/9 恢复，不会丢失。
+- **sp 最后恢复**：所有帧槽位都相对 sp 寻址，提前恢复 x2 会导致后续 `ld` 偏移错位。
+- **不恢复 scause/stval**：它们是诊断信息；返回 PC 和特权级分别由 `sepc` 与 `sstatus.SPP` 控制，`sret` 还会令 `SIE=SPIE`、`SPIE=1`、`SPP=0`。
+- **工具链兼容**：本机 binutils 2.47 不再识别 RISC-V 1.9 旧名 `sbadaddr`（1.10 起为 `stval`，0x143）。为保持 SAVE_ALL 原文不变，在文件开头加 `.equ sbadaddr, 0x143`；旧工具链即使仍支持旧名也不改变语义。
+- **EPC 前移按指令长度**：临时桩初版对断点统一 `epc += 4` 导致 Test 1 FAIL；objdump 显示 `ebreak` 被汇编为 2 字节 `c.ebreak`（`9002`），改为 `+2` 后通过。正式处理函数必须判断 16/32 位指令，不能统一 `+4`。
+
+### 6.4 验证记录（实际发生）
+
+- `riscv64-unknown-elf-gcc -mcmodel=medany -std=gnu99 -Werror -nostdinc -Ilibs -Ikern/trap -c kern/trap/trapentry.S` 通过。
+- 反汇编确认 `__trapret`：`ld s0,256(sp)`、`ld s1,264(sp)`、`csrw sstatus,s0`、`csrw sepc,s1`、恢复 GPR、最后 `ld sp,16(sp)`、`sret`。
+- 临时桩（不进入仓库的 `~/lab3-b-test`，trap.c 使用临时处理函数）运行注入的 Test 1：
+  `[Test 1] Trap entry and breakpoint return: PASS (35/35)`。
+- 临时桩运行不是最终 `make grade`；Test 2/3 与 100 分评分待 C 完成处理函数后统一验证。日志见 `report/logs/b-stage-context-stub.log` 与 `b-stage-assembly-check.log`。
+
+### 6.5 交接 C
+
+C 需要实现 `interrupt_handler`/`exception_handler`，处理时钟、非法指令、断点及其他兜底输出；正式实现 EPC 前移时按指令长度解码；完成时钟重设、ticks、100 ticks 与关机条件。集成后运行正式 `make grade`，并在报告中明确区分 B 的临时桩结果与 C 的正式评分。
