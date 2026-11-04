@@ -1,0 +1,6 @@
+PASS: original basic_check and best_fit_check are unchanged
+PASS: only pmm.c and best_fit_pmm.c changed among original files
+PASS: sync.h, atomic.h, Trap stubs, Makefile and grading tools are unchanged
+PASS: alloc/free/nr_free interrupt protection wrappers are unchanged
+PASS: Best-Fit selected and memory limits use Lab3 definitions
+NOTE: these are static checks, not RISC-V execution or make grade
