@@ -1,0 +1,51 @@
+$ riscv64-unknown-elf-gcc --version
+riscv64-unknown-elf-gcc (g6afcc4f6d) 16.1.0
+
+$ riscv64-unknown-elf-gcc -c kern/trap/trapentry.S -o /tmp/trapentry.o
+exit=0
+
+== objdump: __trapret ==
+000000000000006a <__trapret>:
+  6a:	6412                	ld	s0,256(sp)
+  6c:	64b2                	ld	s1,264(sp)
+  6e:	10041073          	csrw	sstatus,s0
+  72:	14149073          	csrw	sepc,s1
+  76:	60a2                	ld	ra,8(sp)
+  78:	61e2                	ld	gp,24(sp)
+  7a:	7202                	ld	tp,32(sp)
+  7c:	72a2                	ld	t0,40(sp)
+  7e:	7342                	ld	t1,48(sp)
+  80:	73e2                	ld	t2,56(sp)
+  82:	6406                	ld	s0,64(sp)
+  84:	64a6                	ld	s1,72(sp)
+  86:	6546                	ld	a0,80(sp)
+  88:	65e6                	ld	a1,88(sp)
+  8a:	7606                	ld	a2,96(sp)
+  8c:	76a6                	ld	a3,104(sp)
+  8e:	7746                	ld	a4,112(sp)
+  90:	77e6                	ld	a5,120(sp)
+  92:	680a                	ld	a6,128(sp)
+  94:	68aa                	ld	a7,136(sp)
+  96:	694a                	ld	s2,144(sp)
+  98:	69ea                	ld	s3,152(sp)
+  9a:	7a0a                	ld	s4,160(sp)
+  9c:	7aaa                	ld	s5,168(sp)
+  9e:	7b4a                	ld	s6,176(sp)
+  a0:	7bea                	ld	s7,184(sp)
+  a2:	6c0e                	ld	s8,192(sp)
+  a4:	6cae                	ld	s9,200(sp)
+  a6:	6d4e                	ld	s10,208(sp)
+  a8:	6dee                	ld	s11,216(sp)
+  aa:	7e0e                	ld	t3,224(sp)
+  ac:	7eae                	ld	t4,232(sp)
+  ae:	7f4e                	ld	t5,240(sp)
+  b0:	7fee                	ld	t6,248(sp)
+  b2:	6142                	ld	sp,16(sp)
+  b4:	10200073          	sret
+
+== objdump: __alltraps 关键指令 ==
+   2:	14011073          	csrw	sscratch,sp
+   6:	712d                	addi	sp,sp,-288
+  46:	14001473          	csrrw	s0,sscratch,zero
+  64:	850a                	mv	a0,sp
+  66:	f9bff0ef          	jal	0 <__alltraps-0x2>
