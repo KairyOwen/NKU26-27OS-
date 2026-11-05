@@ -166,7 +166,7 @@ Best-Fit 空闲链表按地址维护，分配时选择容量至少为 n 的最�
 
 **第 2 次迭代：工具链旧 CSR 名称兼容。** 本机 binutils 2.47 不再识别 `SAVE_ALL` 中的 RISC-V 1.9 旧名 `sbadaddr`（1.10 起为 `stval`，0x143），汇编报错。为保持 `SAVE_ALL` 原文不变，在文件开头加 `.equ sbadaddr, 0x143`；旧工具链即使仍识别旧名也不改变语义。
 
-**第 3 次迭代：临时桩验证入口与恢复路径。** C 的处理函数尚未实现，因此在不进入仓库的临时副本 `~/lab3-b-test` 中放临时处理函数（断点异常前移 EPC），用 `tools/inject.py` 注入 Test 1 并构建运行。第一次得到 `FAIL (register context)`：排查发现不是 `RESTORE_ALL` 的问题，而是测试里的 `ebreak` 被汇编为 2 字节 `c.ebreak`（objdump 显示 `9002`），临时桩按 4 字节前移跳过了下一条指令；临时桩改为 `+2` 后得到 PASS。正式处理函数必须按实际指令长度判断 16/32 位，不能统一 `+4`。
+**第 3 次迭代：临时桩验证入口与恢复路径。** 此时 C 的处理函数尚未实现，因此在不进入仓库的临时副本 `~/lab3-b-test` 中放临时处理函数（断点异常前移 EPC），用 `tools/inject.py` 注入 Test 1 并构建运行。第一次得到 `FAIL (register context)`：排查发现不是 `RESTORE_ALL` 的问题，而是测试里的 `ebreak` 被汇编为 2 字节 `c.ebreak`（objdump 显示 `9002`），临时桩按 4 字节前移跳过了下一条指令；临时桩改为 `+2` 后得到 PASS。正式处理函数必须按实际指令长度判断 16/32 位，不能统一 `+4`。（该处理函数已由 C 阶段在 `trap.c` 中正式实现。）
 
 #### 验证与交接
 
@@ -250,7 +250,7 @@ EPC 前移必须按实际指令长度处理：读取 `tf->epc` 处的 16 位指�
 | A 阶段目标编译和启动 | 通过 | `images/lab3_a_check.png`，含链接、镜像生成、Best-Fit 自检、阶段 PASS 和返回 shell |
 | Lab3 原始评分与自动时钟关机 | PASS 100/100 | C 阶段运行正式 `make grade`，三项全部通过 |
 | B 阶段 trapentry.S 汇编检查 | 通过 | `logs/b-stage-assembly-check.log`，含 `__alltraps`/`__trapret` 关键反汇编 |
-| B 阶段临时桩 Test 1 | PASS 35/35（临时桩，不是最终评分） | `logs/b-stage-context-stub.log`；C 的处理函数尚未实现 |
+| B 阶段临时桩 Test 1 | PASS 35/35（临时桩，不是最终评分） | `logs/b-stage-context-stub.log`；当时 C 的处理函数尚未实现，已由 C 阶段补齐并正式评分 |
 
 `validate_a.sh check` 复制代码到新建的临时目录，使用 A 专用入口，并在该临时构建中排除未实现的 Trap 模块。测试调用真实 `pmm_init()` 与 Best-Fit 自检，再验证三页分配/释放后的计数和原先关闭的 SIE 状态，最后通过 SBI 关机。
 
