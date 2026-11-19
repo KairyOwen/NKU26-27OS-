@@ -1,0 +1,5 @@
+code/bin/
+code/obj/
+code/.qemu.out
+code/.gdb.in
+**/__pycache__/

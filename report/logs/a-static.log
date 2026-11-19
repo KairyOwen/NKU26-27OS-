@@ -1,0 +1,3 @@
+PASS: only A-owned original files changed: kern/mm/default_pmm.c, kern/mm/pmm.c, kern/trap/trap.c, kern/trap/trapentry.S
+PASS: original allocator/page-table tests and forkrets preserved
+PASS: interrupt wrappers, B/C source files, Makefile and grading files preserved
